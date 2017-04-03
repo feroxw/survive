@@ -1,0 +1,2943 @@
+<!doctype html>
+<html>
+<head>
+	<title> Survive </title>
+</head>
+<body>
+
+<div id="treeStack">
+	<canvas id="treeContent" width="400" height="200" style="border:2px solid #000"></canvas>
+</div>
+
+<div id="canvasStack">
+	<canvas id="background" width="600" height="520"></canvas>
+	<canvas id="canvas" width="600" height="520"></canvas>
+	<canvas id="canvasTop" width="600" height="520"></canvas>
+	<canvas id="selection" width="600" height="520"></canvas>
+	<canvas id="playerInterface" width="600" height="520"></canvas>
+	<canvas id="emotes1" width="600" height="520"></canvas>
+	<canvas id="emotes2" width="600" height="520"></canvas>
+	<canvas id="evolve" width="600" height="520"></canvas>
+	<canvas id="overlay" width="600" height="520"></canvas>
+	<canvas id="overlay2" width="600" height="520"></canvas>
+	<canvas id="overlay3" width="600" height="520"></canvas>
+	<canvas id="help1" width="600" height="520"></canvas>
+</div>	
+
+<div id="infoStack">
+	<canvas id="inventory" width="678" height="520"></canvas>
+	<canvas id="inventoryText" width="678" height="520"></canvas>
+	<canvas id="inventoryLower" width="678" height="520"></canvas>
+	<canvas id="tooltipBody" width="678" height ="520" ></canvas>
+	<canvas id="tooltipBorderAndText" width="678" height ="520" ></canvas>
+	<canvas id="help2" width="600" height="520"></canvas>
+</div>
+<style>
+	canvas {position: absolute;}
+
+	#infoStack{
+		width: 678px;
+		height: 520px;
+		position: absolute;
+		top: 10px;
+		left: 620px;
+	}
+	#inventory {z-index: 1; }
+	#inventoryLower {z-index: 2;}
+	#inventoryText {z-index: 4;}
+	#tooltipBody {z-index: 5; opacity: 0.6; }
+	#tooltipBorderAndText {z-index: 6; }
+	#help2 {z-index: 7}
+
+	#canvasStack{
+		width: 600;
+		height: 520;
+	}
+	#background {z-index: 1}
+	#canvas {z-index: 2;}
+	#canvasTop {z-index: 3;}
+	#selection {z-index: 4;}
+	#playerInterface {z-index: 5;}
+	#emotes1 {z-index: 6; opacity: 0.8;}
+	#emotes2 {z-index: 7; opacity: 0.8;}
+	#evolve {z-index: 8;}
+	#overlay {z-index: 9; opacity: 0.8;}
+	#overlay2 {z-index: 10; opacity: 0.8;}
+	#overlay3 {z-index: 11; opacity: 0.8;}
+	#help1 {z-index: 12;}
+
+	#treeStack {
+		left: 1200px;
+		width: 100px;
+		height: 100px;
+		background-color: blue;
+		overflow: scroll;
+		float: right;
+		position: absolute;
+		z-index: 1;
+	}
+	
+</style>
+<script>
+
+(function() {
+    var requestAnimationFrame = window.requestAnimationFrame || 
+    							window.mozRequestAnimationFrame || 
+								window.webkitRequestAnimationFrame || 
+								window.msRequestAnimationFrame;
+    window.requestAnimationFrame = requestAnimationFrame;
+})();
+
+var bck = document.getElementById("background").getContext("2d"),
+	ctx = document.getElementById("canvas").getContext("2d"),
+	ctx2 = document.getElementById("canvasTop").getContext("2d"),
+	inv = document.getElementById("inventory").getContext("2d"),
+	ivt = document.getElementById("inventoryText").getContext("2d"),
+	ivl = document.getElementById("inventoryLower").getContext("2d"),
+	ttp = document.getElementById("tooltipBody").getContext("2d"),
+	ttt = document.getElementById("tooltipBorderAndText").getContext("2d"),
+	slc = document.getElementById("selection").getContext("2d"),
+	menu = document.getElementById("playerInterface").getContext("2d"),
+	emo1 = document.getElementById("emotes1").getContext('2d'),
+	emo2 = document.getElementById("emotes2").getContext('2d'),
+	evo = document.getElementById("evolve").getContext("2d"),
+	ovr = document.getElementById("overlay").getContext("2d"),
+	ovr2 = document.getElementById("overlay2").getContext("2d"),
+	ovr3 = document.getElementById("overlay3").getContext("2d"),
+	tre = document.getElementById("treeContent").getContext("2d"),
+	hp1 = document.getElementById("help1").getContext("2d"),
+	hp2 = document.getElementById("help2").getContext("2d"),
+
+	width = 600,
+	height = 520,
+	invWidth = 678,
+	invHeight = 520,
+
+	keyboard = [],
+	mouseX = 0,
+	mouseY = 0,
+
+	offsetLeft = 0,
+	offsetTop = 0,
+	dragging = false,
+	mousedownX = 0,
+	mousedownY = 0,
+
+	key = [Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256)],
+	a = 0,
+	b = 0,
+	keybyte = 0,
+	S = [],
+
+	selected = 0,
+	selectedType = 0,
+	radarSwitch = false,
+
+	holdingSpace = false,
+	holdingUp = false,
+	holdingDown = false,
+	holdingRight = false,
+	holdingLeft = false,
+	holdingKey = false,
+
+	paused = false,
+	ticker = 0,
+	actionLength = .1,
+	actionTimeout = 0,
+	turnBuffer = 0,
+
+	moveCycle = .2,
+	drinkCycle = 2,
+	eatCycle = 3,
+	sleepCycle = 2.5,
+	communicateCycle = 1,
+	socializeCycle = 3,
+	attackCycle = 3;
+	damagedCycle = 1;
+
+	globalTemperature = 40,
+	sunlight = 1,
+	wind = 1,
+	rain = 1,
+	season = 0,
+	year = 0,
+	timeOfDay = 0,
+	day = 0,
+
+	fauna = [],
+	flora = [],
+	tiles = [],
+	terrain = [],
+	rectangles = [],
+
+	phenotypesFauna = [],
+	phenotypesFlora = [],
+	organics = [],
+
+	faunaAncestryTable = [],
+	faunaColorTable = [],
+	faunaNameTable = [],
+	uniqueFaunaIndex = [],
+	faunaAbundanceTable = [],
+
+	floraAncestryTable = [],
+	floraColorTable = [],
+	floraNameTable = [],
+	uniqueFloraIndex = [],
+	floraAbundanceTable = [],
+
+	proximityWeb = [],
+
+	postArray = [],
+	emoteArray = [],
+
+	foodInventory = new Image(),
+	faunaInventory = new Image(),
+	floraInventory = new Image(),
+	soilInventory = new Image(),
+	tree = new Image(),
+	phenotype = new Image(),
+	organicsList = new Image(),
+	graph = new Image(),
+	tooltipPhenotypeBody = new Image(),
+	tooltipPhenotypeBorder = new Image(),
+	clock = new Image(),
+	thermometer = new Image(),
+	bite = new Image(),
+	emotes = new Image(),
+	circadian = new Image(),
+
+	phenotypeTab =      {x: 610, y: 375, width: 100, height: 20},
+	graphTab =          {x: 710, y: 375, width:  95, height: 20},
+	treeTab =           {x: 805, y: 375, width:  90, height: 20},
+	awarenessButton =   {x: 620, y: 265, width: 180, height: 25},
+
+	clockX = 560,
+	clockY = 35;
+
+foodInventory.src = "http://i.imgur.com/6agtBJc.png";
+faunaInventory.src = "http://i.imgur.com/bI1K4rB.png";
+floraInventory.src = "http://i.imgur.com/jTpiSrV.png";
+soilInventory.src = "http://i.imgur.com/ERdCctL.png";
+tree.src = "http://i.imgur.com/RiRMsiQ.png";
+phenotype.src = "http://i.imgur.com/GP4w3FU.png";
+graph.src = "http://i.imgur.com/KbFNTP2.png";
+organicsList.src = "http://i.imgur.com/nJcUCZT.png";
+tooltipPhenotypeBody.src = "http://i.imgur.com/EVPF3Vr.png";
+tooltipPhenotypeBorder.src = "http://i.imgur.com/7JE7Rpp.png";
+clock.src = "http://i.imgur.com/YHWxMZU.png";
+thermometer.src = "http://i.imgur.com/GGYX6NC.png";
+bite.src = "http://i.imgur.com/RedbLtl.png";
+emotes.src = "http://i.imgur.com/YehPJPP.png";
+circadian.src = "http://i.imgur.com/KWdKRQo.png";
+
+organics.push(["Blueish Algae",1]);
+organics.push(["Cyan Algae",1]);
+organics.push(["Blooming Algae",1]);
+organics.push(["Teeming Algae",1]);
+organics.push(["Rich Algae Cluster",1]);
+organics.push(["Scattered Algae",1]);
+organics.push(["Unicellular Sun Feeder",1]);
+organics.push(["Overgrown Filamentous Algae",1]);
+organics.push(["Free-floating Sun Feeders",1]);
+organics.push(["Flagellate Plankton",1]);
+organics.push(["Radial Diatom",1]);
+organics.push(["Bilateral Diatom",1]);
+organics.push(["Slimy Filmic Algae",1]);
+organics.push(["Lazy Flagellate Plankton",1]);
+organics.push(["Swift Flagellate Plankton",1]);
+organics.push(["Hungry Flagellate Plankton",1]);
+organics.push(["Carbon-plated Plankton",1]);
+organics.push(["Rotund Plankton",1]);
+organics.push(["Jellyfish Larvae",1]);
+organics.push(["Fish Larvae",1]);
+
+organics.push(["Saprotrophic Fungi",2]);
+organics.push(["Brown Anaerobic Fungi",2]);
+organics.push(["Parasitic Fungi",2]);
+organics.push(["Puffball Fungi",2]);
+organics.push(["Yellow Puffball Fungi",2]);
+organics.push(["Stinkhorn Fungi",2]);
+organics.push(["Sac Fungi",2]);
+organics.push(["Rampant Sac Fungi",2]);
+organics.push(["Orange Jelly Fungi",2]);
+organics.push(["Green Jelly Fungi",2]);
+organics.push(["Cup Fungi",2]);
+organics.push(["Large Cup Fungi",2]);
+organics.push(["Pale Green Bracket Fungi",2]);
+organics.push(["Gill Fungi",2]);
+organics.push(["Purple Pouch Fungi",2]);
+organics.push(["Beige Earthstar Fungi",2]);
+organics.push(["Fungal Spores",2]);
+organics.push(["Bulbous Morel",2]);
+organics.push(["Young Morel",2]);
+organics.push(["Bright Coral Fungi",2]);
+
+organics.push(["Cocci",3]);
+organics.push(["Bulky Cocci",3]);
+organics.push(["Plentiful Cocci",3]);
+organics.push(["Frail Cocci",3]);
+organics.push(["Chained Cocci",3]);
+organics.push(["Clustered Cocci",3]);
+organics.push(["Innumerable Cocci",3]);
+organics.push(["Thriving Bacilli",3]);
+organics.push(["Burgeoning Bacilli",3]);
+organics.push(["Dwindling Bacilli",3]);
+organics.push(["Diplobacilli",3]);
+organics.push(["Hearty Diplobacilli",3]);
+organics.push(["Short Streptobacilli",3]);
+organics.push(["Long Streptobacilli",3]);
+organics.push(["Streptobacilli",3]);
+organics.push(["Spirilla",3]);
+organics.push(["Convoluted Spirilla",3]);
+organics.push(["Weak Spirilla",3]);
+organics.push(["Scattered Phototrophs",3]);
+organics.push(["Vigorous Phototrophs",3]);
+organics.push(["Common Phototrophs",3]);
+organics.push(["Green Phototrophs",3]);
+organics.push(["Cyan Phototrophs",3]);
+organics.push(["Purple Phototrophs",3]);
+organics.push(["Adaptive Organotrophs",3]);
+organics.push(["Large Organotrophs",3]);
+organics.push(["Small Organotrophs",3]);
+organics.push(["Productive Organotrophs",3]);
+organics.push(["Busy Organotrophs",3]);
+organics.push(["Warring Organotrophs",3]);
+organics.push(["Thin Organotrophs",3]);
+organics.push(["Struggling Lithotrophs",3]);
+organics.push(["Fat Lithotrophs",3]);
+organics.push(["Scavenging Lithotrophs",3]);
+
+organics.push(["Leaf Litter",4]);
+organics.push(["Old Wood Particles",4]);
+organics.push(["Burnt Wood Particles",4]);
+organics.push(["Dead Algae",4]);
+organics.push(["Carrion",4]);
+organics.push(["Half-consumed Dung",4]);
+organics.push(["Manure",4]);
+organics.push(["Owl Pellets",4]);
+organics.push(["Guano",4]);
+organics.push(["Frass",4]);
+organics.push(["Decaying Rodent Tissue",4]);
+organics.push(["Semi-decomposed Feces",4]);
+organics.push(["Dead Plant Cells",4]);
+organics.push(["Flower Mucilage",4]);
+organics.push(["Dissolved Fish Waste",4]);
+organics.push(["Hearty Proteins",4]);
+organics.push(["Dense Polysaccharide",4]);
+organics.push(["Sparse Lipids",4]);
+organics.push(["Decayed Roots",4]);
+organics.push(["Mammal Carcass",4]);
+organics.push(["Sludge",4]);
+organics.push(["Past-prime Seeds",4]);
+organics.push(["Organic Secretion",4]);
+organics.push(["Unused Nucleic Acids",4]);
+organics.push(["Leftover Banana Peel",4]);
+organics.push(["Rotting Fruit",4]);
+organics.push(["Spoiled Meat",4]);
+organics.push(["Leaked Bone Mineral",4]);
+organics.push(["Dried Blood Plasma",4]);
+organics.push(["Rotted Connective Tissue",4]);
+organics.push(["Fibrous Proteins",4]);
+organics.push(["Discarded Membrane",4]);
+organics.push(["Cellular Refuse",4]);
+organics.push(["Abandoned Chloroplast",4]);
+organics.push(["Tasteless Dust",4]);
+organics.push(["Exoskeleton Flakes",4]);
+organics.push(["Fallen Crustacean",4]);
+organics.push(["Crushed Leaves",4]);
+organics.push(["Trampled Pinecone",4]);
+
+phenotypesFlora.push(["Old Taproot",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Young Taproot",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Ancient Taproot",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Unstable Lateral Roots",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Durable Lateral Roots",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Shallow Fibrous Roots",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Deep Fibrous Roots",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Aerial Roots",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Pneumataphores",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Stilt Roots",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Sturdy Buttress Roots",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Hardy Tubers",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Weak Tubers",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Thick Storage Roots",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Thin Storage Roots",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Girthy Trunk",0,0,0,.40,0,1]);
+phenotypesFlora.push(["Succulent Fruit",0,25,0,0,10,1]);
+phenotypesFlora.push(["Plump Fruit",0,25,0,0,15,1]);
+phenotypesFlora.push(["Fragile Stem",0,0,0,0,0,1]);
+phenotypesFlora.push(["Bright Orange Petals",0,30,0,.10,0,1]);
+phenotypesFlora.push(["Tart Clustered Drupe",0,30,0,0,0,1]);
+phenotypesFlora.push(["Smooth Purple Drupe",0,30,0,0,0,1]);
+phenotypesFlora.push(["Red Pitted Berry",0,20,0,0,0,1]);
+phenotypesFlora.push(["Fuzzy White Drupe",0,30,0,0,0,1]);
+phenotypesFlora.push(["Tangy Yellow Drupe",0,30,0,0,0,1]);
+phenotypesFlora.push(["Rotten Fruit",0,0,25,0,0,1]);
+phenotypesFlora.push(["Lush Pink Citrus",0,30,0,0,0,1]);
+phenotypesFlora.push(["Sour Yellow Citrus",0,30,0,0,0,1]);
+phenotypesFlora.push(["Refreshing Great Melon",0,40,0,0,0,1]);
+phenotypesFlora.push(["Sparse Berry Cluster",0,10,0,0,0,1]);
+
+//[name,defense,venom,bite,lacerate,pummel,impale,speed,insulation,efficiency,awareness]//
+phenotypesFauna.push(["Thick Scales",             5, 1, 0, 3, 0, 0, 0, .30,  0,  0, null]);
+phenotypesFauna.push(["Thin Scales",              2, 0, 0, 2, 0, 0, 0, .10,  0,  0, null]);
+phenotypesFauna.push(["Contour Feathers",         1, 0, 0, 0, 0, 0, 1, .20,  0,  0, null]);
+phenotypesFauna.push(["Down Feathers",            0, 0, 0, 0, 1, 0, 2, .30,  0,  0, null]);
+phenotypesFauna.push(["Bristle Feathers",         3, 0, 0, 0, 1, 0, 2, .20,  0,  0, null]);
+phenotypesFauna.push(["Guard Fur",                8, 0, 0, 0, 0, 0, 0, .30,  0,  0, null]);
+phenotypesFauna.push(["Shaggy Guard Fur",        12, 0, 0, 0, 0, 0, 0, .40,  0,  0, null]);
+phenotypesFauna.push(["Thick Down Fur",           4, 0, 0, 0, 0, 0, 0, .50,  0,  0, null]);
+phenotypesFauna.push(["Fine Fur",                 2, 0, 0, 0, 0, 0, 0, .20,.10,  0, null]);
+phenotypesFauna.push(["Brittle Exoskeleton",      2, 0, 0, 0, 0, 0, 0, .10,  0,  0, null]);
+phenotypesFauna.push(["Sturdy Exoskeleton",      10, 0, 0, 0, 0, 0, 0, .30,  0,  0, null]);
+phenotypesFauna.push(["Impregnable Exoskeleton", 15, 0, 0, 0, 0, 0, 0, .40,  0,  0, null]);
+phenotypesFauna.push(["Small Bivalve Shell",      3, 0, 2, 0, 0, 0, 0, .10,  0,  0, null]);
+phenotypesFauna.push(["Large Bivalve Shell",     10, 0, 5, 0, 0, 0, 0, .10,  0,  0, null]);
+phenotypesFauna.push(["Gastropod Shell",         10, 0, 0, 0, 0, 0, 0, .20,  0,  0, null]);
+phenotypesFauna.push(["Nautilus Shell",          10, 0, 0, 0, 0, 0, 0, .20,  0,  0, null]);
+phenotypesFauna.push(["Massive Nautilus Shell",  15, 0, 0, 0, 0, 0, 0, .30,  0,  0, null]);
+phenotypesFauna.push(["Passive Soaring Wings",    2, 0, 0, 0, 4, 0, 3, .30,.20,200,"Air"]);
+phenotypesFauna.push(["Active Soaring Wings",     2, 0, 0, 2, 2, 0, 3, .30,.30,240,"Air"]);
+phenotypesFauna.push(["Elliptical Wings",         1, 0, 0, 0, 1, 0, 5, .10,  0,100,"Air"]);
+phenotypesFauna.push(["Highspeed Wings",          2, 0, 0, 2, 0, 0,10, .10,.10, 80,"Air"]);
+phenotypesFauna.push(["Bat Wings",                2, 0, 0, 0, 1, 0, 3, .10,.10, 60,"Air"]);
+phenotypesFauna.push(["Pectoral Fins",            0, 0, 0, 0, 1, 0, 2,   0,.10,  0,"Sea"]);
+phenotypesFauna.push(["Ventral Fins",             0, 0, 0, 0, 1, 0, 2,   0,.20,  0,"Sea"]);
+phenotypesFauna.push(["Dorsal Fin",               2, 0, 0, 1, 1, 0, 2,   0,.20, 40,"Sea"]);
+phenotypesFauna.push(["Venomous Dorsal Fin",      2, 5, 0, 0, 1, 0, 2,   0,.20, 40,"Sea"]);
+phenotypesFauna.push(["Sleek Dorsal Fin",         0, 0, 0, 1, 1, 0, 4,   0,.20, 40,"Sea"]);
+phenotypesFauna.push(["Deft Tail Fin",            0, 0, 0, 0, 3, 0, 3,   0,.20, 40,"Sea"]);
+phenotypesFauna.push(["Bulky Tail Fin",           2, 0, 0, 0, 7, 0, 1,   0,.30, 30,"Sea"]);
+phenotypesFauna.push(["Flippers",                 0, 0, 0, 0, 4, 0, 4,   0,.30, 30,"Sea"]);
+phenotypesFauna.push(["Wide Flippers",            1, 0, 0, 0, 6, 0, 6,   0,.35, 40,"Sea"]);
+phenotypesFauna.push(["Venomous Barbs",           2,10, 0, 2, 0, 2, 0,   0,  0, 10, null]);
+phenotypesFauna.push(["Dull Incisors",            1, 0, 2, 2, 0, 0, 0,   0,  0,  0, null]);
+phenotypesFauna.push(["Sharp Incisors",           1, 0, 5, 5, 0, 0, 0,   0,  0,  0, null]);
+phenotypesFauna.push(["Serrated Incisors",        1, 0, 8, 8, 0, 0, 0,   0,  0,  0, null]);
+phenotypesFauna.push(["Mammoth Incisors",         2, 0,12,10, 0, 0, 0,   0,  0,  0, null]);
+phenotypesFauna.push(["Venomous Fangs",           1,10, 4, 4, 0, 0, 0,   0,  0,  0, null]);
+phenotypesFauna.push(["Short Whiskers",           0, 0, 0, 0, 0, 0, 0,   0,  0, 40, null]);
+phenotypesFauna.push(["Long Whiskers",            0, 0, 0, 0, 0, 0, 0,   0,  0, 80, null]);
+phenotypesFauna.push(["Barbels",                  0, 0, 0, 0, 0, 0, 0,   0,  0, 60, null]);
+phenotypesFauna.push(["Hypersensitive Barbels",   0, 0, 0, 0, 0, 0, 0,   0,  0, 80, null]);
+phenotypesFauna.push(["Blunted Snout",            2, 0, 0, 0, 0, 0, 0,   0,  0, 20, null]);
+phenotypesFauna.push(["Elongated Snout",          3, 0, 0, 0, 0, 0, 0,   0,  0, 40, null]);
+phenotypesFauna.push(["Exagerrated Snout",        4, 0, 0, 0, 0, 0, 0,   0,.10, 80, null]);
+phenotypesFauna.push(["Truncated Tail",           3, 0, 0, 0, 2, 0,.5,   0,.10, 10, null]);
+phenotypesFauna.push(["Stout Tail",               6, 0, 0, 0, 4, 0,.5,   0,.10, 10, null]);
+phenotypesFauna.push(["Long Tail",                4, 0, 0, 0, 4, 0, 2,   0,.15, 40, null]);
+phenotypesFauna.push(["Bushy Tail",               6, 0, 0, 0, 4, 0, 1, .10,.10, 40, null]);
+phenotypesFauna.push(["Venomous Tail",            6,10, 0, 0, 0, 5, 1,   0,.10, 20, null]);
+phenotypesFauna.push(["Protective Tail",         10, 0, 0, 0, 4, 0, 0, .10,  0, 30, null]);
+phenotypesFauna.push(["Lithe Tail",               3, 0, 0, 0, 2, 0, 3, .10,.15, 40, null]);
+phenotypesFauna.push(["Dexterous Tail",           3, 0, 0, 0, 1, 0, 0, .10,.20, 60, null]);
+phenotypesFauna.push(["Nose",                     0, 0, 0, 0, 1, 0, 0,   0,  0, 60, null]);
+phenotypesFauna.push(["Acute Nose",               0, 0, 0, 0, 1, 0, 0,   0,  0,100, null]);
+phenotypesFauna.push(["Magnificant Nose",         0, 0, 0, 0, 3, 0, 0,   0,  0,160, null]);
+phenotypesFauna.push(["Ultracanny Sniffer",       0, 0, 0, 0, 1, 0, 0,   0,  0,240, null]);
+phenotypesFauna.push(["Hooked Beak",              3, 0, 5, 7, 1, 0, 0,   0,  0, 20, null]);
+phenotypesFauna.push(["Lamellate Beak",           3, 0, 3, 1, 1, 0, 0,   0,  0, 20, null]);
+phenotypesFauna.push(["Straight Beak",            2, 0, 3, 1, 1, 8, 0,   0,  0, 30, null]);
+phenotypesFauna.push(["Hydrostat Arms",           4, 0, 0, 0, 8, 0, 4,   0,.20, 60, null]);
+phenotypesFauna.push(["Nimble Hydrostat Arms",    2, 0, 0, 0, 6, 0, 0,   0,.30, 60, null]);
+phenotypesFauna.push(["Thorny Tentacles",         1, 0, 0, 4, 4, 4, 2,   0,  0, 30, null]);
+phenotypesFauna.push(["Hooked Tentacles",         1, 0, 0, 8, 4, 6, 2,   0,  0, 30, null]);
+phenotypesFauna.push(["Suction Tentacles",        1, 0, 0, 0, 4, 0, 3,   0,.20, 30, null]);
+phenotypesFauna.push(["Cnidocyte Tentacles",      1,12, 0, 0, 4, 6, 0,   0,  0, 20, null]);
+phenotypesFauna.push(["Lethal Claws",             1, 0, 0,12, 0, 7,.5,   0,.05,  0, null]);
+phenotypesFauna.push(["Sharp Claws",              1, 0, 0, 8, 0, 5,.5,   0,.05,  0, null]);
+phenotypesFauna.push(["Strong Claws",             1, 0, 0, 6, 0, 6, 2,   0,.20,  0, null]);
+phenotypesFauna.push(["Gripping Talons",          1, 0, 0, 6, 0, 6, 2,   0,.30,  0, null]);
+phenotypesFauna.push(["Deadly Talons",            1, 0, 0,10, 0, 8, 2,   0,.15,  0, null]);
+phenotypesFauna.push(["Scaley Talons",            6, 0, 0, 4, 0, 3, 2,   0,.15,  0, null]);
+phenotypesFauna.push(["Pincers",                  4, 0, 8, 3, 6, 3,.5,   0,.10,  0, null]);
+phenotypesFauna.push(["Monstrous Pincers",        6, 0,12, 5, 9, 5, 0,   0,.05,  0, null]);
+phenotypesFauna.push(["Unwiedly Pincers",        10, 0, 0, 0, 9, 0, 0,   0,  0,  0, null]);
+phenotypesFauna.push(["Cloven Hoofs",             2, 0, 0, 0, 6, 0, 4,   0,.15,  0, null]);
+phenotypesFauna.push(["Swift Cloven Hoofs",       2, 0, 0, 0, 4, 0, 7,   0,.15,  0, null]);
+phenotypesFauna.push(["Dewclaws",                 0, 0, 0, 0, 0, 0, 2,   0,.20,  0, null]);
+phenotypesFauna.push(["Hoofs",                    3, 0, 0, 0,10, 0,10,   0,.10,  0, null]);
+phenotypesFauna.push(["Stomach",                  0, 0, 0, 0, 0, 0, 0,   0,.20,  0, null]);
+phenotypesFauna.push(["Compartmental Gut",        0, 0, 0, 0, 0, 0, 0,   0,.80,  0, null]);
+phenotypesFauna.push(["Gastrodermis",             0, 0, 0, 0, 0, 0, 0,   0,.05,  0, null]);
+phenotypesFauna.push(["Twisting Gut",             0, 0, 0, 0, 0, 0, 0,   0,.15,  0, null]);
+phenotypesFauna.push(["Short Intestine",          0, 0, 0, 0, 0, 0, 0,   0,.10,  0, null]);
+phenotypesFauna.push(["Gizzard",                  0, 0, 0, 0, 0, 0, 0,   0,.25,  0, null]);
+phenotypesFauna.push(["Alimentary Canal",         0, 0, 0, 0, 0, 0, 0, .10,.20,  0, null]);
+phenotypesFauna.push(["Capillaries",              0, 0, 0, 0, 0, 0, 0, .10,.10,  0, null]);
+phenotypesFauna.push(["Arteries",                 0, 0, 0, 0, 0, 0, 0, .15,.15,  0, null]);
+
+function randomSpeciesName(){
+	var alphabet = ["a","a","b","c","d","e","e","f","g","h","i","i","j","k","l","m","n","o","o","p","ph","qu","r","s","t","th","u","u","v","w","x","y","z"],
+		suffixes = ["us","is","era","i","um","ion","ae","es", "o", "phyta", "da", "ix", "ella"],
+		name = random(alphabet) + random(alphabet) + random(alphabet) + random(alphabet) + random(suffixes),
+		name = name.charAt(0).toUpperCase() + name.slice(1);
+	return name;
+}
+function generateDiet(){
+	var diets = ["Carn", "Herb", "Plank", "Fungi", "Bact", "Detrit"];
+	return random(diets);
+}
+function generateCircadianRhythm(){
+	var minPeriod = 10,
+		maxPeriod = 72;
+	var start = Math.random() * 2*Math.PI,
+		frequency = 2*Math.PI / (minPeriod + Math.random()*(maxPeriod-minPeriod)),
+		threshold = .4 + Math.random() * .4;
+	return [start, frequency, threshold];
+}
+function generateSocial(){
+	var socials = ["None", "Pre", "Sub", "Solit", "Commun", "Quasi", "Semi", "Eu"],
+		newsocial = random(socials);
+	return newsocial;
+}
+function generateWord(){
+	var words = ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","r","s","t","u","v","w","x","y","z", "~","`","!","@","#","$","%","^","&","*","(",")","_","-","+","=","{","}","[","]","|","<",",",">",".","?","/","1","2","3","4","5","6","7","8","9","0"];
+	return random(words);
+}
+function generatePhenotypeFauna(i){
+	var randomPhenotype = Math.floor(Math.random()*phenotypesFauna.length);
+	for (var p = 0; p < fauna[i].phenotypes.length; p++){
+		if (fauna[i].phenotypes[p][0] === randomPhenotype){
+			randomPhenotype = generatePhenotypeFauna(i);
+		}
+	}
+	return randomPhenotype;
+}
+function removePhenotypeFauna(i,p){
+	var modifier = fauna[i].phenotypes[p][1];
+		index = fauna[i].phenotypes[p][0];
+
+	fauna[i].defense -= phenotypesFauna[index][1]*modifier;
+	fauna[i].toxicity -= phenotypesFauna[index][2]*modifier;
+	fauna[i].bite -= phenotypesFauna[index][3]*modifier;
+	fauna[i].lacerate -= phenotypesFauna[index][4]*modifier;
+	fauna[i].pummel -= phenotypesFauna[index][5]*modifier;
+	fauna[i].impale -= phenotypesFauna[index][6]*modifier;
+	fauna[i].speed -= phenotypesFauna[index][7]*modifier;
+	fauna[i].insulation -= phenotypesFauna[index][8]*modifier;
+	fauna[i].efficiency -= phenotypesFauna[index][9]*modifier;
+	fauna[i].awareness -= phenotypesFauna[index][10]*modifier;
+
+	fauna[i].phenotypes.splice(p-1, 1);
+
+}
+function addPhenotypeFauna(i,index,modifier){
+	fauna[i].defense += phenotypesFauna[index][1]*modifier;
+	fauna[i].toxicity += phenotypesFauna[index][2]*modifier;
+	fauna[i].bite += phenotypesFauna[index][3]*modifier;
+	fauna[i].lacerate += phenotypesFauna[index][4]*modifier;
+	fauna[i].pummel += phenotypesFauna[index][5]*modifier;
+	fauna[i].impale += phenotypesFauna[index][6]*modifier;
+	fauna[i].speed += phenotypesFauna[index][7]*modifier;
+	fauna[i].insulation += phenotypesFauna[index][8]*modifier;
+	fauna[i].efficiency += phenotypesFauna[index][9]*modifier;
+	fauna[i].awareness += phenotypesFauna[index][10]*modifier;
+
+	fauna[i].phenotypes.push([index, modifier]);
+}
+function modifyPhenotypeFauna(i,p,mod){
+	var	oldMod = fauna[i].phenotypes[p][1],
+		newMod = fauna[i].phenotypes[p][1]*mod,
+		index = fauna[i].phenotypes[p][0];
+	fauna[i].defense -= phenotypesFauna[index][1]*oldMod;
+	fauna[i].toxicity -= phenotypesFauna[index][2]*oldMod;
+	fauna[i].bite -= phenotypesFauna[index][3]*oldMod;
+	fauna[i].lacerate -= phenotypesFauna[index][4]*oldMod;
+	fauna[i].pummel -= phenotypesFauna[index][5]*oldMod;
+	fauna[i].impale -= phenotypesFauna[index][6]*oldMod;
+	fauna[i].speed -= phenotypesFauna[index][7]*oldMod;
+	fauna[i].insulation -= phenotypesFauna[index][8]*oldMod;
+	fauna[i].efficiency -= phenotypesFauna[index][9]*oldMod;
+	fauna[i].awareness -= phenotypesFauna[index][10]*oldMod;
+	fauna[i].phenotypes[p][1] *= mod;
+	fauna[i].defense += phenotypesFauna[index][1]*newMod;
+	fauna[i].toxicity += phenotypesFauna[index][2]*newMod;
+	fauna[i].bite += phenotypesFauna[index][3]*newMod;
+	fauna[i].lacerate += phenotypesFauna[index][4]*newMod;
+	fauna[i].pummel += phenotypesFauna[index][5]*newMod;
+	fauna[i].impale += phenotypesFauna[index][6]*newMod;
+	fauna[i].speed += phenotypesFauna[index][7]*newMod;
+	fauna[i].insulation += phenotypesFauna[index][8]*newMod;
+	fauna[i].efficiency += phenotypesFauna[index][9]*newMod;
+	fauna[i].awareness += phenotypesFauna[index][10]*newMod;
+}
+function spawnNewFaunaPrototype(){
+	faunaAncestryTable.push([]);
+	faunaColorTable.push([]);
+	faunaNameTable.push([]);
+	faunaAbundanceTable.push([]);
+	uniqueFaunaIndex.push(fauna.length);
+	var size = Math.pow(2,Math.random()*8);
+	fauna.push({
+		name: randomSpeciesName() + " " + randomSpeciesName(),
+		origin: faunaAncestryTable.length - 1,
+		index: faunaAncestryTable[faunaAncestryTable.length - 1].length,
+		speciesAncestry : [255 - year],
+		color: [Math.random()*256, Math.random()*256, Math.random()*256],
+		x: Math.floor(Math.random() * width),
+		y: Math.floor(Math.random() * height),
+		width: Math.floor(Math.sqrt(size)) + 3,
+		height: Math.floor(Math.sqrt(size)) + 3,
+		tileIndex: 0,
+		generation: 0,
+		abundance: 1,
+		dead: false,
+		rhythm: generateCircadianRhythm(),
+		bond: [],
+		size: size,
+		diet: generateDiet(),
+		social: generateSocial(),
+		energyUnprocessed: size/20,
+		energyProcessed: size/20,
+		metabolism: 5 + Math.random()*10,
+		temperature: 35,
+		processedMax: 0,
+		energyValue: 0,
+		hydration: 100,
+		disease: {name: "None"}, 
+		injury: "None", 
+		insulation: 1,
+		speed: 1,
+		lacerate: 0,
+		impale: 0,
+		pummel: 0,
+		bite: 0,
+		toxicity: 0,
+		defense: 0,
+		mobility: 0,
+		awareness: 0,
+		efficiency: 1,
+		vitality: 50,
+		phenotypes: [],
+		wordBank: [generateWord()],
+		memory: [],
+		nodeRegistry: [],
+		nodeConnections: [],
+		path: [],
+		target: null,
+		actionBuffer: (Math.random()*256 % 120)/60,
+		emote: -1,
+		post: "",
+		velX: 0,
+		velY: 0,
+	});
+	var i = fauna.length - 1;
+	fauna[i].tileIndex = getTile(fauna[i]);
+	addPhenotypeFauna(i, generatePhenotypeFauna(i), 1);
+	addPhenotypeFauna(i, generatePhenotypeFauna(i), 1);
+	addPhenotypeFauna(i, generatePhenotypeFauna(i), 1);	
+	faunaAncestryTable[fauna[i].origin].push(fauna[i].speciesAncestry);
+	faunaColorTable[fauna[i].origin].push(fauna[i].color);
+	faunaNameTable[fauna[i].origin].push(fauna[i].name);
+	faunaAbundanceTable[fauna[i].origin].push([1]);
+}
+function spawnFaunaClone(prototype){
+	fauna.push({
+		name: prototype.name,
+		origin: prototype.origin,
+		index: prototype.index,
+		speciesAncestry: [],
+		color: [prototype.color[0], prototype.color[1], prototype.color[2]],
+		x: prototype.x + Math.floor(Math.random()*prototype.width*4 - prototype.width*2),
+		y: prototype.y + Math.floor(Math.random()*prototype.height*4 - prototype.height*2),
+		width: prototype.width,
+		height: prototype.height,
+		tileIndex: 0,
+		generation: 0,
+		abundance: prototype.abundance + 1,
+		dead: false,
+		rhythm: prototype.rhythm,
+		bond: [],
+		size: prototype.size,
+		diet: prototype.diet,
+		social: prototype.social,
+		energyUnprocessed: prototype.size/20,
+		energyProcessed: prototype.size/20,
+		metabolism: prototype.metabolism,
+		temperature: 35,
+		processedMax: 0,
+		energyValue: 0,
+		hydration: 100,
+		disease: {name: "None"}, 
+		injury: "None", 
+		insulation: 1,
+		speed: 1,
+		lacerate: 0,
+		impale: 0,
+		pummel: 0,
+		bite: 0,
+		toxicity: 0,
+		defense: 0,
+		mobility: 0,
+		awareness: 0,
+		efficiency: 1,
+		vitality: 50,
+		phenotypes: [],
+		wordBank: prototype.wordBank,
+		memory: [],
+		nodeRegistry: [],
+		nodeConnections: [],
+		path: [],
+		target: null,
+		actionBuffer: (Math.random()*256 % 120)/60,
+		emote: -1,
+		post: "",
+		velX: 0,
+		velY: 0,
+	});
+	var i = fauna.length - 1;
+	fauna[i].tileIndex = getTile(fauna[i]);
+	for (var a = 0; a < prototype.speciesAncestry.length; a++){
+		fauna[i].speciesAncestry.push(prototype.speciesAncestry[a]);
+	}
+	for (var p = 0; p < prototype.phenotypes.length; p++){
+		addPhenotypeFauna(i, prototype.phenotypes[p][0], prototype.phenotypes[p][1]);
+	}
+	faunaAbundanceTable[fauna[i].origin][fauna[i].index][faunaAbundanceTable[fauna[i].origin][fauna[i].index].length - 1] += 1;	
+}
+function spawnDivergentFauna(prototype){
+	spawnFaunaClone(prototype);
+	var i = fauna.length-1,
+		spaceIndex = prototype.name.indexOf(' '),
+		colorRNG = [Math.floor(Math.random()*50 - 25), Math.floor(Math.random()*50 - 25), Math.floor(Math.random()*50 - 25)];
+	fauna[i].name = randomSpeciesName() + prototype.name.slice(spaceIndex);
+	fauna[i].color[0] = (fauna[i].color[0] + colorRNG[0]) % 256;
+	fauna[i].color[1] = (fauna[i].color[1] + colorRNG[1]) % 256;
+	fauna[i].color[2] = (fauna[i].color[2] + colorRNG[2]) % 256;
+	fauna[i].speciesAncestry.push(255 - year);
+	fauna[i].index = faunaAncestryTable[fauna[i].origin].length;
+	if (Math.random() > .5){
+		addPhenotypeFauna(i, generatePhenotypeFauna(i), 1);	
+	} else {
+		modifyPhenotypeFauna(i, Math.floor(Math.random()*fauna[i].phenotypes.length), Math.floor(Math.random()*30)*.10);
+	}
+
+	faunaAncestryTable[fauna[i].origin].push(fauna[i].speciesAncestry);
+	faunaColorTable[fauna[i].origin].push(fauna[i].color);
+	faunaNameTable[fauna[i].origin].push(fauna[i].name);
+	faunaAbundanceTable[fauna[i].origin][prototype.index][faunaAbundanceTable[fauna[i].origin][prototype.index].length - 1] -= 1;
+	faunaAbundanceTable[fauna[i].origin].push([1]);
+	uniqueFaunaIndex.push(i);
+}
+function spawnFaunaCluster(clusterSize){
+	spawnNewFaunaPrototype();
+	for (var i = 1; i < clusterSize; i++){
+		spawnFaunaClone(fauna[fauna.length - i]);
+	}
+}
+
+function generateSeedType(){
+	var types = ["Airborne", ""];
+	return [types[0]];
+}
+function generateGrowthRange(){
+	var range = Math.floor(35 + Math.random()*10 - 5),
+		rangeStart = Math.floor(-5 + Math.random()*20),
+		growthRange = [rangeStart, rangeStart + range];
+	return growthRange;
+}
+function generatePhenotypeFlora(k){
+	var randomPhenotype = Math.floor(Math.random()*phenotypesFlora.length);
+	for (var p = 0; p < flora[k].phenotypes.length; p++){
+		if (flora[k].phenotypes[p][0] === randomPhenotype){
+			randomPhenotype = generatePhenotypeFlora(k);
+		}
+	}
+	return randomPhenotype;
+}
+function removePhenotypeFlora(k, p){
+	var modifier = flora[k].phenotypes[p][1],
+		index = flora[k].phenotypes[p][0];
+
+	flora[k].toxicity -= phenotypesFlora[index][1]*modifier;
+	flora[k].lure -= phenotypesFlora[index][2]*modifier;
+	flora[k].repel -= phenotypesFlora[index][3]*modifier;
+	flora[k].efficiency -= phenotypesFlora[index][4]*modifier;
+	flora[k].energyValue -= phenotypesFlora[index][5]*modifier;	
+
+	flora[k].phenotypes.splice(p-1, 1);
+}
+function addPhenotypeFlora(k,index,modifier){
+	flora[k].toxicity += phenotypesFlora[index][1]*modifier;
+	flora[k].lure += phenotypesFlora[index][2]*modifier;
+	flora[k].repel += phenotypesFlora[index][3]*modifier;
+	flora[k].efficiency += phenotypesFlora[index][4]*modifier;
+	flora[k].energyValue += phenotypesFlora[index][5]*modifier;
+
+	flora[k].phenotypes.push([index, modifier]);
+}
+function modifyPhenotypeFlora(k,p){
+	var modifier = Math.floor(Math.random()*30)*.10,
+		oldMod = flora[k].phenotypes[p][1],
+		newMod = flora[k].phenotypes[p][1]*modifier;
+	flora[k].toxicity -= phenotypesFlora[flora[k].phenotypes[p][0]][1]*oldMod;
+	flora[k].lure -= phenotypesFlora[flora[k].phenotypes[p][0]][2]*oldMod;
+	flora[k].repel -= phenotypesFlora[flora[k].phenotypes[p][0]][3]*oldMod;
+	flora[k].efficiency -= phenotypesFlora[flora[k].phenotypes[p][0]][4]*oldMod;
+	flora[k].energyValue -= phenotypesFlora[flora[k].phenotypes[p][0]][5]*oldMod;
+	flora[k].phenotypes[p][1] *= modifier;
+	flora[k].toxicity += phenotypesFlora[flora[k].phenotypes[p][0]][1]*newMod;
+	flora[k].lure += phenotypesFlora[flora[k].phenotypes[p][0]][2]*newMod;
+	flora[k].repel += phenotypesFlora[flora[k].phenotypes[p][0]][3]*newMod;
+	flora[k].efficiency += phenotypesFlora[flora[k].phenotypes[p][0]][4]*newMod;
+	flora[k].energyValue += phenotypesFlora[flora[k].phenotypes[p][0]][5]*newMod;
+}
+function spawnNewFloraPrototype(){
+	floraAncestryTable.push([]);
+	floraColorTable.push([]);
+	floraNameTable.push([]);
+	uniqueFloraIndex.push(flora.length);
+	var stature = Math.random()*6;
+	flora.push({
+		name: randomSpeciesName() + " " + randomSpeciesName(),
+		origin: floraAncestryTable.length - 1,
+		speciesAncestry: [255 - year],
+		color: [Math.random()*256, Math.random()*256, Math.random()*256],
+		x: Math.floor(Math.random() * width),
+		y: Math.floor(Math.random() * height),
+		width: Math.floor(stature) + 3,
+		height: Math.floor(stature) + 3,
+		stature: stature,
+		tileIndex: 0,
+		dead: false,
+		lure: 0,
+		repel: 0,
+		soil: generateSoilMix(),
+		seed: generateSeedType(),
+		growthRange: generateGrowthRange(),
+		age: 0,
+		abundance: 1,
+		metabolism: 5,
+		energyValue: .2,
+		hydration: 100,
+		disease: {name: "None"},  
+		toxicity: 0,
+		efficiency: 1,
+		vitality: 1,
+		phenotypes: [],
+	});
+	var k = flora.length - 1;
+	flora[k].tileIndex = getTile(flora[k]);
+	addPhenotypeFlora(k, generatePhenotypeFlora(k), 1);
+	addPhenotypeFlora(k, generatePhenotypeFlora(k), 1);
+	addPhenotypeFlora(k, generatePhenotypeFlora(k), 1);
+	floraAncestryTable[flora[k].origin].push(flora[k].speciesAncestry);
+	floraColorTable[flora[k].origin].push(flora[k].color);
+	floraNameTable[flora[k].origin].push(flora[k].name);
+}
+function spawnFloraClone(prototype){
+	flora.push({
+		name: prototype.name,
+		origin: prototype.origin,
+		speciesAncestry: [],
+		color: [prototype.color[0], prototype.color[1], prototype.color[2]],
+		x: prototype.x + Math.floor(Math.random()*prototype.width*6 - prototype.width*2),
+		y: prototype.y + Math.floor(Math.random()*prototype.width*6 - prototype.width*2),
+		width: prototype.width,
+		height: prototype.height,
+		stature: prototype.stature,
+		tileIndex: 0,
+		dead: false,
+		lure: 0,
+		repel: 0,
+		soil: [prototype.soil[0], prototype.soil[1], prototype.soil[2]],
+		seed: prototype.seed,
+		growthRange: [prototype.growthRange[0], prototype.growthRange[1]],
+		age: 0,
+		abundance: 1,
+		metabolism: 5,
+		energyValue: .2,
+		hydration: 100,
+		disease: {name: "None"},  
+		toxicity: 0,
+		efficiency: 1,
+		vitality: 1,
+		phenotypes: [],
+	});
+	var k = flora.length - 1;
+	flora[k].tileIndex = getTile(flora[k]);
+	for (var a = 0; a < prototype.speciesAncestry.length; a++){
+		flora[k].speciesAncestry.push(prototype.speciesAncestry[a]);
+	}
+	for (var p = 0; p < prototype.phenotypes.length; p++){
+		addPhenotypeFlora(k, prototype.phenotypes[p][0], prototype.phenotypes[p][1]);
+	}
+}
+function spawnDivergentFlora(prototype){
+	spawnFloraClone(prototype);
+	var k = flora.length-1,
+		spaceIndex = prototype.name.indexOf(' '),
+		colorRNG = [Math.floor(Math.random()*50 - 25), Math.floor(Math.random()*50 - 25), Math.floor(Math.random()*50 - 25)];
+	flora[k].name = randomSpeciesName() + prototype.name.slice(spaceIndex);
+	flora[k].color[0] = (flora[k].color[0] + colorRNG[0]) % 256;
+	flora[k].color[1] = (flora[k].color[1] + colorRNG[1]) % 256;
+	flora[k].color[2] = (flora[k].color[2] + colorRNG[2]) % 256;
+	flora[k].speciesAncestry.push(255 - year);
+	if (Math.random() > .5){
+		addPhenotypeFlora(k, generatePhenotypeFlora(k), 1);	
+	} else {
+		modifyPhenotypeFlora(k, Math.floor(Math.random()*flora[k].phenotypes.length));
+	}
+	floraAncestryTable[flora[k].origin].push(flora[k].speciesAncestry);
+	floraColorTable[flora[k].origin].push(flora[k].color);
+	floraNameTable[flora[k].origin].push(flora[k].name);
+	uniqueFloraIndex.push(k);
+}
+function spawnFloraCluster(clusterSize){
+	spawnNewFloraPrototype();
+	for (var k = 1; k < clusterSize; k++){
+		spawnFloraClone(flora[flora.length - k]);
+	}
+}
+
+function generateSoilMix(){
+	var mix = [0,0,0],
+		scheduler = Math.floor(Math.random()*3);
+	mix[scheduler] = Math.floor(Math.random()*101);
+	mix[(scheduler + 1)%3] = Math.floor(Math.random()*(100 - mix[scheduler]));
+	mix[(scheduler + 2)%3] = 100 - mix[scheduler] - mix[(scheduler + 1)%3];
+	return mix;
+}
+function randomDiseaseName(){
+	var syllables = ["a","a","b","c","d","e","e","f","g","h","i","i","j","k","l","m","n","o","o","p","ph","qu","r","s","t","th","u","u","v","w","x","y","z"],
+		suffixes = ["mia", "itis", "osis", "ata", "asia", "ella"],
+		name = random(syllables) + random(syllables) + random(syllables) + random(syllables) + random(suffixes),
+		name = name.charAt(0).toUpperCase() + name.slice(1);
+	return name;
+}
+function generateDisease(){
+	return {
+		name: randomDiseaseName(),
+		strength: Math.random()*10,
+		defenseSap: Math.random()*2,
+		crippleFauna: Math.random()*2,
+		fogginess: Math.random()*2,
+		crippleFlora: Math.random()*2,
+	};
+}
+function addOrganic(t){
+	var randomOrganicIndex = Math.floor(Math.random()*organics.length);
+	tiles[t].organics.push([randomOrganicIndex, generateDisease()]);
+}
+function generateLand(){
+	for (var t = 0; t < width/40*height/40; t++){
+		var soil = generateSoilMix();
+		var newTile = {
+			x: (t*40) % 600,
+			y: Math.floor(t/(width/40))*40,
+			width: 40,
+			height: 40,
+			N: soil[0],
+			P: soil[1],
+			K: soil[2],
+			moisture: Math.floor(Math.random()*101),
+			organics: [],
+		};
+		if (t > 0){
+			newTile.moisture = tiles[t - 1].moisture + Math.floor(Math.random()*40) - 20;
+			if (newTile.moisture > 100){
+				newTile.moisture = 100;
+			}
+			if (newTile.moisture < 0){
+				newTile.moisture = 0;
+			}
+		}
+		tiles.push(newTile);
+		if (newTile.moisture > 80){
+			rectangles.push(newTile);
+		}
+		addOrganic(t);
+	}
+}
+function generateBoulders(){
+	for (var u = 0; u < 10; u++){
+		var newTerrain = {
+		x: Math.random()*width,
+		y: Math.random()*height,
+		width: Math.random()*.2*width + 24,
+		height: Math.random()*.2*height + 24,
+		};
+
+		terrain.push(newTerrain);
+		rectangles.push(newTerrain);
+	}
+}
+
+function evolution(){
+	var evolveSchedulerFauna = [];
+	for (var e = 0; e < uniqueFaunaIndex.length; e++){
+		if (Math.random() > .8){
+			evolveSchedulerFauna.push(1);
+		} else {
+			evolveSchedulerFauna.push(0);
+		}
+	}
+	for (var e = 0; e < evolveSchedulerFauna.length; e++){
+		if (evolveSchedulerFauna[e] === 1){
+			spawnDivergentFauna(fauna[uniqueFaunaIndex[e]]);
+		}
+	}
+
+	var evolveSchedulerFlora = [];
+	for (var e = 0; e < uniqueFloraIndex.length; e++){
+		if (Math.random() > .6){
+			evolveSchedulerFlora.push(1);
+		} else {
+			evolveSchedulerFlora.push(0);
+		}
+	}
+	for (var e = 0; e < evolveSchedulerFlora.length; e++){
+		if (evolveSchedulerFlora[e] === 1){
+			spawnDivergentFlora(flora[uniqueFloraIndex[e]]);
+		}
+	}
+	evo.clearRect(0,0,600,520);
+}
+
+function updateAncestry(){
+	//Add yearly entry of 0 for each species
+	for(var u = 0; u < faunaAbundanceTable.length; u++){ 
+		for(var v = 0; v < faunaAbundanceTable[u].length; v++){	
+			faunaAbundanceTable[u][v].push(0); 
+		}
+	}
+
+	//Add one to entry per live member of species
+	for (var i = 0; i < fauna.length; i++){ 
+		if (!fauna[i].dead){
+			faunaAbundanceTable[fauna[i].origin][fauna[i].index][faunaAbundanceTable[fauna[i].origin][fauna[i].index].length - 1] += 1;
+		}
+	}
+}
+
+function nodeCollisionDetection(i){
+	var x2 = fauna[i].nodeRegistry[fauna[i].path[0]][0];
+	if (x2 < fauna[i].x + fauna[i].width){
+		if (x2 + fauna[i].width > fauna[i].x){
+			var y2 = fauna[i].nodeRegistry[fauna[i].path[0]][1];
+			if (y2 < fauna[i].y + fauna[i].height){
+				if (y2 + fauna[i].height > fauna[i].y){
+					return true;
+				}
+			}
+		}
+	}
+}
+function binaryCollisionDetection(shapeA,shapeB){
+	var dX = (shapeA.x + (shapeA.width / 2)) - (shapeB.x + (shapeB.width / 2)),
+	    dY = (shapeA.y + (shapeA.height / 2)) - (shapeB.y + (shapeB.height / 2)),
+	    tangentX = (shapeA.width + shapeB.width) / 2,
+	    tangentY = (shapeA.height + shapeB.height) / 2,
+	    separationX = Math.abs(dX) - tangentX,
+	    separationY = Math.abs(dY) - tangentY;
+	    if (separationX < 0 && separationY < 0){
+	    	return true;
+	    }
+}
+function compensateForCollision(shapeA,shapeB){
+	var dX = (shapeA.x + (shapeA.width / 2)) - (shapeB.x + (shapeB.width / 2)),
+	    dY = (shapeA.y + (shapeA.height / 2)) - (shapeB.y + (shapeB.height / 2)),
+	    tangentX = (shapeA.width + shapeB.width) / 2,
+	    tangentY = (shapeA.height + shapeB.height) / 2,
+	    separationX = Math.abs(dX) - tangentX,
+	    separationY = Math.abs(dY) - tangentY;
+	if (separationX < 0 && separationY < 0){
+		if (separationX > separationY){
+			if (dX > 0){
+				shapeA.x -= separationX;
+		
+			} else {
+				shapeA.x += separationX;
+				
+			}
+		}
+		if (separationX < separationY){
+			if (dY > 0){
+				shapeA.y -= separationY;
+				
+			} else {
+				shapeA.y += separationY;
+				
+			}
+		}
+	} 
+}
+function updateFauna(i){
+	var optimalTemperature = 33,
+	    deviationFromOptimalTemperature = Math.abs(fauna[i].temperature-optimalTemperature),
+	    relativeTemperature = globalTemperature - fauna[i].temperature;
+
+	//Death
+	if (fauna[i].vitality > 0){
+		if (deviationFromOptimalTemperature > 3){
+			fauna[i].vitality -= (1/60);
+		}
+	}
+	if (fauna[i].vitality <= 0){
+		fauna[i].dead = true;
+	}
+
+	//Energy Value Tabulation
+	fauna[i].energyValue = fauna[i].energyProcessed + fauna[i].energyUnprocessed + fauna[i].size*.10;
+
+	//Digestion
+	if (fauna[i].energyUnprocessed > 0){
+		fauna[i].energyUnprocessed -= (1/60)*(1/1000) * fauna[i].metabolism;
+		fauna[i].energyProcessed += (1/60)*(1/1000) * fauna[i].metabolism;
+
+		fauna[i].temperature += (1/60)*(.01) * fauna[i].metabolism;
+	} else {
+		fauna[i].energyUnprocessed = 0;
+	}
+
+	//Environment
+	if (relativeTemperature > 0) {
+		fauna[i].temperature += (1/60) * (.05)*(relativeTemperature)/fauna[i].size * fauna[i].insulation;
+	}
+
+	if (relativeTemperature < 0) {
+		fauna[i].temperature -= (1/60) * (.05)*(- relativeTemperature)/fauna[i].size / fauna[i].insulation;
+	}
+
+	//Movement
+		if (fauna[i].energyProcessed >= (1/60)*(1/1000)*Math.abs(fauna[i].velX)*fauna[i].size/fauna[i].efficiency + (1/60)*(1/1000)*Math.abs(fauna[i].velY)*fauna[i].size/fauna[i].efficiency) {
+
+			fauna[i].energyProcessed -= (1/60)*(1/1000)*Math.abs(fauna[i].velX)*fauna[i].size/fauna[i].efficiency;
+			fauna[i].energyProcessed -= (1/60)*(1/1000)*Math.abs(fauna[i].velY)*fauna[i].size/fauna[i].efficiency;
+
+			fauna[i].temperature += (1/60)*(.02)*fauna[i].velX;
+			fauna[i].temperature += (1/60)*(.02)*fauna[i].velY;
+
+			if (fauna[i].path.length > 0){
+				if (nodeCollisionDetection(i)){
+					fauna[i].actionBuffer = 0;
+				}
+			}
+
+			fauna[i].x += fauna[i].velX;
+			fauna[i].y += fauna[i].velY;
+		}
+
+	//Circulation
+	fauna[i].hydration -= (1/60)*.1 + (1/60)*.1*(fauna[i].temperature - optimalTemperature);
+
+	//Volcanic Gurgling of Organs
+	fauna[i].temperature += (1/60)*.2;
+
+	//Thermoregulation
+	if (deviationFromOptimalTemperature > 0){
+		if (fauna[i].energyProcessed > (1/60)*(1/1000)*(fauna[i].size)/fauna[i].efficiency){
+
+			fauna[i].temperature -= (1/60)*(.10)*(fauna[i].temperature - optimalTemperature);
+			fauna[i].energyProcessed -= (1/60)*(1/1000)*(fauna[i].size)/fauna[i].efficiency;
+		}
+	}
+}
+function updateFlora(k){
+	//Hydration
+	flora[k].hydration -= (1/60)*sunlight;
+	flora[k].hydration += (1/60)*tiles[flora[k].tileIndex].moisture/100;
+
+	//Photosynthesis
+	var photosynthesis = Math.ceil(flora[k].hydration/100)*sunlight;
+
+	//Growth
+	if (flora[k].hydration > 0 && 
+		globalTemperature > flora[k].growthRange[0] && 
+		globalTemperature < flora[k].growthRange[1]){
+
+		var soilRating = .1 + 
+			(Math.abs(flora[k].soil[0] - tiles[flora[k].tileIndex].N) + 
+			Math.abs(flora[k].soil[1] - tiles[flora[k].tileIndex].P) + 
+			Math.abs(flora[k].soil[2] - tiles[flora[k].tileIndex].K))/100;
+
+		flora[k].stature += (1/60)*(1/100)*(photosynthesis/soilRating);
+
+		flora[k].energyValue += (1/60)*(1/10)*flora[k].stature/soilRating*photosynthesis/flora[k].efficiency;
+
+		flora[k].width = Math.floor(flora[k].stature) + 3;
+		flora[k].height =  Math.floor(flora[k].stature) + 3;
+	}
+}
+function updateClimate(){
+	var amplitude = 20;
+		average = 20;
+	sunlight = .5*Math.sin(ticker/(25/(2*Math.PI))) + .5;
+	globalTemperature = amplitude*Math.sin(ticker/(25/(2*Math.PI)) - Math.PI/3) + average;
+}
+
+function selectFauna(i){
+	slc.clearRect(0,0,615,520);
+	if (selected === i && selectedType === "Fauna"){
+		radarSwitch = !radarSwitch;
+	} else {
+		radarSwitch = false;
+	}
+	if (radarSwitch){
+		showRadar(i);
+	}
+	selected = i;
+	selectedType = "Fauna";
+	drawFaunaPanel(i);
+	populateFaunaInfo(i);
+	drawPhenotypesFauna(i);
+	drawCircadianRhythm(i);
+	drawIcons(i);
+	highlightFauna(i);
+}
+function selectFlora(k){
+	slc.clearRect(0,0,600,520);
+	selected = k;
+	selectedType = "Flora";
+	drawFloraPanel();
+	populateFloraInfo(k);
+	drawPhenotypesFlora(k);
+	drawFlower(0);
+	highlightFlora(k);
+}
+function selectTile(t){
+	slc.clearRect(0,0,600,520);
+	selected = t;
+	selectedType = "Soil";
+	drawSoilPanel();
+	populateSoilInfo(t);
+	drawOrganics(t);
+	highlightTile(t);
+}
+function showAwareness(i){
+	slc.lineWidth = 2;
+	slc.strokeStyle = "#" + convertToHex(fauna[i].color[0]) + convertToHex(fauna[i].color[1]) + convertToHex(fauna[i].color[2]);
+	slc.setLineDash([10,5]);
+	slc.beginPath();
+	slc.moveTo(fauna[i].x - fauna[i].awareness, fauna[i].y - fauna[i].awareness);
+	slc.lineTo(fauna[i].x - fauna[i].awareness, fauna[i].y + fauna[i].height + fauna[i].awareness);
+	slc.lineTo(fauna[i].x + fauna[i].width + fauna[i].awareness, fauna[i].y + fauna[i].height + fauna[i].awareness);
+	slc.lineTo(fauna[i].x + fauna[i].width + fauna[i].awareness, fauna[i].y - fauna[i].awareness);
+	slc.lineTo(fauna[i].x - fauna[i].awareness, fauna[i].y - fauna[i].awareness);
+	slc.stroke();
+}
+function showLure(k){
+	slc.strokeStyle = "#" + convertToHex(flora[k].color[0]) + convertToHex(flora[k].color[1]) + convertToHex(flora[k].color[2]);
+	slc.setLineDash([10,5]);
+	slc.beginPath();
+	slc.moveTo(flora[k].x - flora[k].lure + flora[k].repel, flora[k].y - flora[k].lure + flora[k].repel);
+	slc.lineTo(flora[k].x - flora[k].lure + flora[k].repel, flora[k].y + flora[k].height + flora[k].lure - flora[k].repel);
+	slc.lineTo(flora[k].x + flora[k].width + flora[k].lure - flora[k].repel, flora[k].y + flora[k].height + flora[k].lure - flora[k].repel);
+	slc.lineTo(flora[k].x + flora[k].width + flora[k].lure - flora[k].repel, flora[k].y - flora[k].lure + flora[k].repel);
+	slc.lineTo(flora[k].x - flora[k].lure + flora[k].repel, flora[k].y - flora[k].lure + flora[k].repel);
+	slc.stroke();
+}
+function highlightFauna(i){
+	slc.strokeStyle = "black";
+	slc.lineWidth = 1;
+	slc.setLineDash([10,0]);
+	slc.beginPath();
+	slc.moveTo(fauna[i].x - 2, fauna[i].y - 2);
+	slc.lineTo(fauna[i].x - 2, fauna[i].y + fauna[i].height + 2);
+	slc.lineTo(fauna[i].x + 2 + fauna[i].width, fauna[i].y + fauna[i].height + 2);
+	slc.lineTo(fauna[i].x + 2 + fauna[i].width, fauna[i].y - 2);
+	slc.lineTo(fauna[i].x - 2, fauna[i].y - 2);
+	slc.stroke();
+}
+function highlightFlora(k){
+	slc.strokeStyle = "black";
+	slc.lineWidth = 1;
+	slc.setLineDash([10,0]);
+	slc.beginPath();
+	slc.arc(flora[k].x + flora[k].width/2, flora[k].y + flora[k].width/2, flora[k].width / 2 + 2, 0, 2*Math.PI);
+	slc.stroke();
+}
+function highlightTile(t){
+	slc.strokeStyle = "black";
+	slc.lineWidth = 1;
+	slc.setLineDash([10,0]);
+	slc.beginPath();
+	slc.moveTo(tiles[t].x, tiles[t].y);
+	slc.lineTo(tiles[t].x + tiles[t].width, tiles[t].y);
+	slc.lineTo(tiles[t].x + tiles[t].width, tiles[t].y + tiles[t].height);
+	slc.lineTo(tiles[t].x, tiles[t].y + tiles[t].height);
+	slc.lineTo(tiles[t].x, tiles[t].y);
+	slc.stroke();
+}
+function boxFauna (i, color){
+	slc.strokeStyle = color;
+	slc.lineWidth = fauna[i].width/3;
+	slc.setLineDash([0,0]);
+	slc.beginPath();
+	slc.moveTo(fauna[i].x - .5*fauna[i].width, fauna[i].y + .25*fauna[i].height);
+	slc.lineTo(fauna[i].x - .5*fauna[i].width, fauna[i].y - .5*fauna[i].height);
+	slc.lineTo(fauna[i].x + .25*fauna[i].width, fauna[i].y - .5*fauna[i].height);
+
+	slc.moveTo(fauna[i].x + 1.5*fauna[i].width, fauna[i].y + .25*fauna[i].height);
+	slc.lineTo(fauna[i].x + 1.5*fauna[i].width, fauna[i].y - .5*fauna[i].height);
+	slc.lineTo(fauna[i].x + .75*fauna[i].width, fauna[i].y - .5*fauna[i].height);	
+
+	slc.moveTo(fauna[i].x - .5*fauna[i].width, fauna[i].y + .75*fauna[i].height);
+	slc.lineTo(fauna[i].x - .5*fauna[i].width, fauna[i].y + 1.5*fauna[i].height);
+	slc.lineTo(fauna[i].x + .25*fauna[i].width, fauna[i].y + 1.5*fauna[i].height);	
+
+	slc.moveTo(fauna[i].x + 1.5*fauna[i].width, fauna[i].y + .75*fauna[i].height);
+	slc.lineTo(fauna[i].x + 1.5*fauna[i].width, fauna[i].y + 1.5*fauna[i].height);
+	slc.lineTo(fauna[i].x + .75*fauna[i].width, fauna[i].y + 1.5*fauna[i].height);	
+
+	slc.stroke();
+}
+function showRadar(i){
+	showAwareness(i);
+	if (fauna[i].diet === "Carn"){
+		var nearbyFauna = senseFauna(i);
+		for (var i = 0; i < nearbyFauna.length; i++){
+			boxFauna(nearbyFauna[i][5], "red");
+		}
+	} else if (fauna[i].diet === "Herb"){
+		var nearbyFlora = senseFlora(i);
+		for (var k = 0; k < nearbyFlora.length; k++){
+			showLure(nearbyFlora[k][5]);
+		}
+	} else if (fauna[i].diet === "Plank"){
+		var nearbyOrganics = senseOrganics(i,1);
+		for (var t = 0; t < nearbyOrganics.length; t++){
+			highlightTile(nearbyOrganics[t][5]);
+		}
+	} else if (fauna[i].diet === "Fungi"){
+		var nearbyOrganics = senseOrganics(i,2);
+		for (var t = 0; t < nearbyOrganics.length; t++){
+			highlightTile(nearbyOrganics[t][5]);
+		}
+	} else if (fauna[i].diet === "Bact"){
+		var nearbyOrganics = senseOrganics(i,3);
+		for (var t = 0; t < nearbyOrganics.length; t++){
+			highlightTile(nearbyOrganics[t][5]);
+		}
+	} else if (fauna[i].diet === "Detrit"){
+		var nearbyOrganics = senseOrganics(i,4);
+		for (var t = 0; t < nearbyOrganics.length; t++){
+			highlightTile(nearbyOrganics[t][5]);
+		}
+	}
+}
+
+function drawFauna(i, oldX, oldY){
+	ctx.clearRect(oldX - 0.75, oldY - 0.75, fauna[i].width + 1.5, fauna[i].height + 1.5);
+	ctx.beginPath();
+	ctx.rect(fauna[i].x, fauna[i].y, fauna[i].width, fauna[i].height);
+	ctx.fillStyle = "#" + convertToHex(fauna[i].color[0]) + convertToHex(fauna[i].color[1]) + convertToHex(fauna[i].color[2]);
+	ctx.fill();
+}
+function drawFlora(k){
+	ctx.beginPath();
+	ctx.arc(flora[k].x + flora[k].width/2, flora[k].y + flora[k].width/2, flora[k].width / 2, 0, 2*Math.PI);
+	ctx.fillStyle = "#" + convertToHex(flora[k].color[0]) + convertToHex(flora[k].color[1]) + convertToHex(flora[k].color[2]);
+	ctx.stroke();
+	ctx.fill();
+}
+function drawTiles(){
+	for (var t = 0; t < tiles.length; t++){
+		if (tiles[t].moisture > 80){ //Water
+			var color = [Math.floor(255 - tiles[t].moisture*(255/150)),
+						 Math.floor(255 - tiles[t].moisture*(255/150)),
+						 255];
+			bck.beginPath();
+			bck.rect(tiles[t].x, tiles[t].y, tiles[t].width, tiles[t].height);
+			bck.fillStyle = "#" + convertToHex(color[0]) + convertToHex(color[1]) + convertToHex(color[2]);
+			bck.fill();
+		} else { //Land
+			var color = [Math.floor(255 - tiles[t].moisture*(255/80)),255,Math.floor(255 - tiles[t].moisture*(255/80))];
+			bck.beginPath();
+			bck.rect(tiles[t].x, tiles[t].y, tiles[t].width, tiles[t].height);
+			bck.fillStyle = "#" + convertToHex(color[0]) + convertToHex(color[1]) + convertToHex(color[2]);
+			bck.fill();
+		}
+	}
+}
+function drawBoulders(){
+	for (var u = 0; u < terrain.length; u++){
+		bck.beginPath();
+		bck.fillStyle = "#634D0B"
+		bck.rect(terrain[u].x,terrain[u].y,terrain[u].width,terrain[u].height);
+		bck.fill();
+
+		bck.beginPath();
+		bck.fillStyle = "#A98A2B"
+		bck.rect(terrain[u].x + 4,terrain[u].y + 4,terrain[u].width - 8,terrain[u].height - 8);
+		bck.fill();
+
+		bck.beginPath();
+		bck.fillStyle = "#D2B96E"
+		bck.rect(terrain[u].x + 8,terrain[u].y + 8,terrain[u].width - 16,terrain[u].height - 16);
+		bck.fill();
+
+		bck.beginPath();
+		bck.fillStyle = "#E8DBB4"
+		bck.rect(terrain[u].x + 12,terrain[u].y + 12,terrain[u].width - 24,terrain[u].height - 24);
+		bck.fill();
+	}
+}
+
+function drawFaunaPanel(){
+	inv.clearRect(0,0,704,400);
+	ivt.clearRect(0,0,704,400);
+	inv.drawImage(faunaInventory, 0, 0);
+}
+function drawPhenotypesFauna(i){
+	ivt.clearRect(0,403, invWidth, 120);
+	ivl.drawImage(phenotype,0,375);
+	for (var n = 0; n < fauna[i].phenotypes.length; n++){
+		ivt.fillText(phenotypesFauna[fauna[i].phenotypes[n][0]][0], 8 + Math.floor(n/5)*168,  416 + (n % 5)*24);
+	}
+}
+function drawToolTipFauna(p){
+	ttp.drawImage(tooltipPhenotypeBody, mouseX - width - 10, mouseY - 140);
+	ttt.drawImage(tooltipPhenotypeBorder, mouseX - width - 10, mouseY - 140);
+	ttt.font="14pt Arial";
+	ttt.fillStyle="#27629d";
+	var n = 0;
+	var properties = ["Name", "Defense", "Toxicity", "Bite", "Lacerate", "Pummel", "Impale", "Speed", "Insulation", "Efficiency", "Awareness"];
+	for (var property = 1; property < 11; property++){
+		if (phenotypesFauna[fauna[selected].phenotypes[p][0]][property] > 0){
+			ttt.fillText(properties[property], mouseX - width - 3, mouseY - 120 + n*15);
+			ttt.fillText("+" + (phenotypesFauna[fauna[selected].phenotypes[p][0]][property]*
+			fauna[selected].phenotypes[p][1]).toFixed(2), mouseX - width + 95, mouseY - 120 + n*15);
+			n++;
+		}
+	}
+	ttt.fillText("x" + fauna[selected].phenotypes[p][1].toFixed(2), mouseX - width + 103, mouseY - 13);
+}
+
+function drawFloraPanel(){
+	inv.clearRect(0,0,704,400);
+	ivt.clearRect(0,0,704,400);
+	inv.drawImage(floraInventory, 0, 0);
+}
+function drawPhenotypesFlora(k){
+	ivt.clearRect(0,403, invWidth, 120);
+	ivl.drawImage(phenotype,0,375);
+	for (var n = 0; n < flora[k].phenotypes.length; n++){
+		ivt.fillText(phenotypesFlora[flora[k].phenotypes[n][0]][0], 8 + Math.floor(n/5)*168,  416 + (n % 5)*24);
+	}
+}
+function drawToolTipFlora(p){
+	ttp.drawImage(tooltipPhenotypeBody, mouseX - width - 10, mouseY - 140);
+	ttt.drawImage(tooltipPhenotypeBorder, mouseX - width - 10, mouseY - 140);
+	ttt.font="14pt Arial";
+	ttt.fillStyle="#27629d";
+	var n = 0;
+	var properties = ["Name","Toxicity","Lure","Repel","Efficiency","Energy","Modified"];
+	for (var property = 1; property < 6; property++){
+		if (phenotypesFlora[flora[selected].phenotypes[p][0]][property] > 0){
+			ttt.fillText(properties[property], mouseX - width - 3, mouseY - 120 + n*15);
+			ttt.fillText("+" + (phenotypesFlora[flora[selected].phenotypes[p][0]][property]*
+			flora[selected].phenotypes[p][1]).toFixed(2), mouseX - width + 95, mouseY - 120 + n*15);
+			n++;
+		}
+	}
+	ttt.fillText(flora[selected].phenotypes[p][1].toFixed(2), mouseX - width + 95, mouseY - 120 + n*15);
+}
+
+function drawSoilPanel(){
+	inv.clearRect(0,0,704,400);
+	ivt.clearRect(0,0,704,400);
+	inv.drawImage(soilInventory, 0, 0);
+}
+function drawOrganics(t){
+	ivt.clearRect(0, 403, invWidth, 120);
+	ivl.drawImage(organicsList,0,375);
+	for (var o = 0; o < tiles[t].organics.length; o++){
+		ivt.fillText(organics[tiles[t].organics[o][0]][0], 8 + Math.floor(o/5)*168,  416 + (o % 5)*24);
+	}
+}
+function drawToolTipSoil(o){
+	ttp.drawImage(tooltipPhenotypeBody, mouseX - width - 10, mouseY - 140);
+	ttt.drawImage(tooltipPhenotypeBorder, mouseX - width - 10, mouseY - 140);
+	ttt.font="14pt Arial";
+	ttt.fillStyle="#27629d";
+	
+	ttt.fillText("Disease" + " " + tiles[selected].organics[o][1].name, mouseX - width - 3, mouseY - 120);
+}
+
+function populateFaunaInfo(i){
+	ivt.clearRect(0,0,invWidth,invHeight);
+
+	ivt.fillText(fauna[i].name, 285, 24);
+
+	ivt.fillText(fauna[i].diet, 127, 54);
+	ivt.fillText(fauna[i].metabolism.toFixed(1), 127, 86);
+	ivt.fillText(fauna[i].energyProcessed.toFixed(3), 127, 114);
+	ivt.fillText(fauna[i].energyUnprocessed.toFixed(3), 127, 142);
+	ivt.fillText(fauna[i].energyValue.toFixed(3), 127, 170);
+	
+	ivt.fillText(fauna[i].size.toFixed(1), 121, 229);
+	ivt.fillText(fauna[i].speed.toFixed(1), 130, 255);
+	ivt.fillText(fauna[i].awareness.toFixed(1), 130, 282);
+	ivt.fillText(Math.floor(fauna[i].efficiency*100), 130, 312);
+	ivt.fillText(Math.floor(fauna[i].insulation*100), 130, 339);
+
+	ivt.fillText(fauna[i].vitality.toFixed(0), 340, 57);
+	ivt.fillText(fauna[i].hydration.toFixed(1), 333, 86);
+	ivt.fillText(fauna[i].disease.name, 330, 112);
+	ivt.fillText(fauna[i].injury, 330, 140);
+	ivt.fillText(fauna[i].temperature.toFixed(1), 333, 172);
+
+	ivt.fillText(fauna[i].social, 536, 54);
+	ivt.fillText(fauna[i].abundance, 530, 73);
+	ivt.fillText(fauna[i].generation, 530, 101);
+	
+	ivt.fillText(fauna[i].bite, 530, 215);
+	ivt.fillText(fauna[i].lacerate, 530, 243);
+	ivt.fillText(fauna[i].pummel, 530, 271);
+	ivt.fillText(fauna[i].impale, 530, 299);
+	ivt.fillText(fauna[i].toxicity, 530, 327);
+	ivt.fillText(fauna[i].defense, 530, 355);
+}
+function populateFloraInfo(k){
+	ivt.clearRect(0,0,invWidth,invHeight);
+
+	ivt.fillText(flora[k].name, 285, 24);
+
+	ivt.fillText(flora[k].metabolism, 127, 54);
+	ivt.fillText(flora[k].energyValue.toFixed(3), 127, 82);
+	ivt.fillText((flora[k].efficiency*100).toFixed(0), 127, 114);
+
+	ivt.fillText(flora[k].vitality, 327, 56);
+	ivt.fillText(flora[k].hydration.toFixed(1), 333, 86);
+	ivt.fillText(flora[k].disease.name, 330, 112);
+	ivt.fillText(flora[k].toxicity, 330, 140);
+
+	ivt.fillText(flora[k].abundance, 536, 54);
+	ivt.fillText(flora[k].age, 536, 80);
+
+	ivt.fillText(flora[k].stature.toFixed(1), 180, 223);
+	ivt.fillText(flora[k].lure.toFixed(0), 180, 257);
+	ivt.fillText(flora[k].repel, 180, 284);
+
+	ivt.fillText(flora[k].growthRange[0] + " - " + flora[k].growthRange[1], 462, 225);
+	ivt.fillText(flora[k].seed, 460, 252);
+	ivt.fillText(flora[k].soil[0], 460, 279);
+	ivt.fillText(flora[k].soil[1], 460, 308);
+	ivt.fillText(flora[k].soil[2], 460, 335);
+}
+function populateSoilInfo(t){
+	ivt.clearRect(0,0,invWidth,invHeight);
+
+	ivt.fillText(tiles[t].N, 205, 77);
+	ivt.fillText(tiles[t].P, 205, 104);
+	ivt.fillText(tiles[t].K, 205, 131);
+	ivt.fillText(tiles[t].moisture, 405, 77);
+}
+function updateFaunaInfo(selected, oldEnergyProcessed, oldEnergyUnprocessed, oldEnergyValue, oldTemperature, oldHydration, oldVitality){
+	if (oldEnergyProcessed.toFixed(3) != fauna[selected].energyProcessed.toFixed(3)){
+		ivt.clearRect(120, 98, 52, 20);
+		ivt.fillText(fauna[selected].energyProcessed.toFixed(3), 127, 114);
+	}
+	if (oldEnergyUnprocessed.toFixed(3) != fauna[selected].energyUnprocessed.toFixed(3)){
+		ivt.clearRect(120, 126, 52, 20);
+		ivt.fillText(fauna[selected].energyUnprocessed.toFixed(3), 127, 142);
+	}	
+	if (oldEnergyValue.toFixed(3) != fauna[selected].energyValue.toFixed(3)){
+		ivt.clearRect(127, 160, 52, 20);
+		ivt.fillText(fauna[selected].energyValue.toFixed(3), 127, 170);
+	}
+	if (oldVitality.toFixed(0) != fauna[selected].vitality.toFixed(0)){
+		ivt.clearRect(340, 40, 52, 20);
+		ivt.fillText(fauna[selected].vitality.toFixed(0), 340, 57);
+	}
+	if (oldHydration.toFixed(1) != fauna[selected].hydration.toFixed(1)){
+		ivt.clearRect(330, 73, 52, 20);
+		ivt.fillText(fauna[selected].hydration.toFixed(1), 333, 86);
+	}
+	if (oldTemperature.toFixed(1) != fauna[selected].temperature.toFixed(1)){
+		ivt.clearRect(330, 157, 52, 20);
+		ivt.fillText(fauna[selected].temperature.toFixed(1), 333, 172);
+	}
+
+	var eatfilly = Math.floor(fauna[selected].energyUnprocessed/(fauna[selected].size*.2) * 15);
+	inv.fillStyle = "#841111";
+	inv.beginPath();
+	inv.rect(194, 141 - eatfilly, 14, eatfilly);
+	inv.fill();
+
+	var drinkfilly = Math.floor(fauna[selected].hydration/100 * 15);
+	inv.fillStyle = "#548af7";
+	inv.beginPath();
+	inv.rect(401, 90 - drinkfilly, 14, drinkfilly);
+	inv.fill();
+
+	var healthFillY = Math.floor(fauna[selected].vitality/100 * 15);
+	inv.fillStyle = "#ea1919";
+	inv.beginPath();
+	inv.rect(401, 60 - healthFillY, 14, healthFillY);
+	inv.fill();
+
+	var energyFillY = Math.floor(fauna[selected].energyProcessed/(fauna[selected].size*.2) * 15);
+	inv.fillStyle = "#03f1fd";
+	inv.beginPath();
+	inv.rect(194, 115 - energyFillY, 14, energyFillY);
+	inv.fill();
+
+	drawCircadianRhythm(selected);
+}
+function updateFloraInfo(selected, oldHydration, oldStature, oldEnergyValueFlora){
+	if (oldHydration.toFixed(1) != flora[selected].hydration.toFixed(1)){
+		ivt.clearRect(330, 73, 52, 20);
+		ivt.fillText(flora[selected].hydration.toFixed(1), 333, 86);
+	}
+	if (oldStature.toFixed(1) != flora[selected].stature.toFixed(1)){
+		ivt.clearRect(178, 208, 52, 20);
+		ivt.fillText(flora[selected].stature.toFixed(1), 180, 223);
+	}
+	if (oldEnergyValueFlora.toFixed(3) != flora[selected].energyValue.toFixed(3)){
+		ivt.clearRect(127, 70, 52, 20);
+		ivt.fillText(flora[selected].energyValue.toFixed(2), 127, 82);
+	}
+
+	inv.fillStyle = "#f5f5f5";
+	inv.beginPath();
+	inv.rect(401, 76, 14, 14);
+	inv.fill();
+	ivt.drawImage(emotes, 16, 0, 16, 16, 400,75, 16, 16);
+
+	var drinkfilly = Math.floor(flora[selected].hydration/100 * 15);
+	inv.fillStyle = "#548af7";
+	inv.beginPath();
+	inv.rect(401, 90 - drinkfilly, 14, drinkfilly);
+	inv.fill();
+}
+function drawCircadianRhythm(i){
+	ivt.clearRect(323, 208, 80, 30);
+
+	ivt.strokeStyle = "black";
+	ivt.lineWidth = 1;
+
+	//Rhythm Wave
+	ivt.beginPath();
+	ivt.moveTo(328, 221 - 8*Math.sin(fauna[i].rhythm[1]*(ticker + x - 33 + fauna[i].rhythm[0])));
+	for (var x = 0; x < 67; x++){
+		ivt.lineTo(328 + x, 
+			221 - 8*Math.sin(fauna[i].rhythm[1]*(ticker + x - 33 + fauna[i].rhythm[0])));
+	}
+
+	//Sleep Threshold Line
+	ivt.moveTo(328, 221 - 8*fauna[i].rhythm[2]);
+	ivt.lineTo(395, 221 - 8*fauna[i].rhythm[2]);
+	ivt.stroke();
+
+	//Present Indicator Ball
+	ivt.beginPath();
+	ivt.arc(360, 221 - 8*Math.sin(fauna[i].rhythm[1]*(ticker + fauna[i].rhythm[0])), 2, 0, 2*Math.PI);
+	ivt.fill();
+	ivt.stroke();
+	
+	//Scrolling Background
+	var hour = Math.floor(ticker%24),
+		offsetX = hour - 8,
+		x = 328,
+		y = 212;
+	inv.drawImage(circadian,24 + offsetX,0,67,19,x,y,67,19);
+
+}
+function drawIcons(i){
+	var hungerX = 193,
+		hungerY = 126,
+		thirstX = 400,
+		thirstY = 75,
+		healthX = 400,
+		healthY = 45,
+		energyX = 193,
+		energyY = 100;
+	inv.fillStyle = "#f5f5f5";
+	inv.beginPath();
+	inv.rect(hungerX + 1, hungerY + 1, 14, 14);
+	inv.fill();
+	ivt.drawImage(emotes, 0, 0, 16, 16, hungerX, hungerY, 16, 16);
+	inv.beginPath();
+	inv.rect(thirstX + 1, thirstY + 1, 14, 14);
+	inv.fill();
+	ivt.drawImage(emotes, 16, 0, 16, 16, thirstX, thirstY, 16, 16);
+	if (!fauna[i].dead){
+		inv.beginPath();
+		inv.rect(healthX + 1, healthY + 1, 14, 14);
+		inv.fill();
+		ivt.drawImage(emotes, 32, 0, 16, 16, healthX, healthY, 16, 16);
+	} else {
+		ivt.drawImage(emotes, 64, 0, 16, 16, healthX, healthY, 16, 16);
+	}
+	inv.beginPath();
+	inv.rect(energyX + 1, energyY + 1, 14, 14);
+	inv.fill();
+	ivt.drawImage(emotes, 48, 0, 16, 16, energyX, energyY, 16, 16);
+}
+function drawFlower(k){
+	var colorDepth = Math.floor(Math.random()*5),
+		frequency = Math.floor(Math.random()*10),
+		colors = [];
+	for (var c = colorDepth; c > 0; c--){
+		colors.push(Math.floor(Math.random()*256));
+		colors.push(Math.floor(Math.random()*256));
+		colors.push(Math.floor(Math.random()*256));
+	}
+	ivt.beginPath();
+	ivt.fillStyle = "#" + convertToHex(colors[0]) + convertToHex(colors[1]) + convertToHex(colors[2]);
+	ivt.rect(200, 300, 100, 30);
+	ivt.fillStyle = "#" + convertToHex(colors[0]) + convertToHex(colors[1]) + convertToHex(colors[2]);
+	ivt.fill();
+	ivt.fillStyle = "#ceeace"
+}
+
+function drawTreePanel(){
+	ivt.clearRect(0,403, invWidth, 120);
+	ivl.drawImage(tree, 0, 375);
+}
+function sortSpecies(origin, ancestryArray){
+	var sortingArray = [];
+	for (var f = 0; f < ancestryArray[origin].length; f++){
+		sortingArray.push(ancestryArray[origin][f]);
+		sortingArray.sort();
+	}
+	return sortingArray;
+}
+function drawSpeciesTree(origin, selectedType){
+	if (selectedType === "Fauna"){
+		var ancestryArray = faunaAncestryTable,
+			colorArray = faunaColorTable,
+			nameArray = faunaNameTable;
+	} else if (selectedType === "Flora"){
+		var ancestryArray = floraAncestryTable,
+			colorArray = floraColorTable,
+			nameArray = floraNameTable;
+	}
+
+	ivt.lineWidth = 3;
+	ivt.font = "10px Arial";
+
+	var sortedArray = sortSpecies(origin, ancestryArray);
+		ageArray = [],
+		scale = 10,
+		rightBuffer = 660 - year*scale,
+		bottomBuffer = 15;
+
+	for (var n = 0; n < sortedArray.length; n++){
+
+		//Calculates Length and Depth of Species 'L' Branch
+		var age = year - Math.abs(sortedArray[n][sortedArray[n].length - 1] - 255),
+			divergeLineLength = scale - 1;
+		for (var x = n; x > 0; x--){
+			if (age > ageArray[x - 1]){
+				divergeLineLength += scale;
+			} else {
+				x = 0;
+			}
+		}
+
+		//Gets Species Name and Color
+		var gIndex = ancestryArray[origin].indexOf(sortedArray[n]);
+			gColor = "#" + convertToHex(colorArray[origin][gIndex][0]) + convertToHex(colorArray[origin][gIndex][1]) + convertToHex(colorArray[origin][gIndex][2]);
+			gName = nameArray[origin][gIndex];
+		
+		//Draws Branch 
+		ivt.strokeStyle = gColor;
+		ivt.fillStyle = gColor;
+		ivt.fillText(gName, invWidth - rightBuffer + 6, invHeight - bottomBuffer - n*scale + 3);
+		ivt.beginPath();
+		ivt.moveTo(invWidth - rightBuffer + 4, invHeight -  bottomBuffer - n*scale);
+		ivt.lineTo(invWidth - rightBuffer - scale*age, invHeight -  bottomBuffer - n*scale);
+		ivt.lineTo(invWidth - rightBuffer - scale*age, invHeight -  bottomBuffer - n*scale + divergeLineLength);
+		ivt.stroke();
+
+		//Stores Branch Length
+		ageArray.push(age);
+	}
+}
+
+function drawGraphPanel(i){
+	ivt.clearRect(0, 403, invWidth, 120);
+	ivl.drawImage(graph,0,375);
+}
+
+function post(string, i){
+	menu.clearRect(fauna[i].x, fauna[i].y - 25, 75, 17);
+	menu.fillText(string, fauna[i].x,fauna[i].y - 10);
+}
+function clearScroll(i){
+	emo2.clearRect(fauna[i].x + fauna[i].width, fauna[i].y,60,40);
+}
+function postScroll(string, i){
+	emo2.fillText(string, fauna[i].x + fauna[i].width, fauna[i].y);
+}
+function clearEmotes(i){
+	emo1.clearRect(fauna[i].x + fauna[i].width/2, fauna[i].y - 16,16,17);
+	emo2.clearRect(fauna[i].x + fauna[i].width/2, fauna[i].y - 16,16,17);
+}
+function emoteScroll(emote, i){
+	if (emote === 0){
+		var y = Math.floor(fauna[i].energyUnprocessed/(fauna[i].size*.2) * 15);
+		emo1.fillStyle = "#841111";
+	}
+	if (emote === 1){
+		var y = Math.floor(fauna[i].hydration/100 * 15);
+		emo1.fillStyle = "#548af7";
+	}
+	if (emote === 2){
+		var y = Math.floor(fauna[i].vitality/100 * 15);
+		emo1.fillStyle = "#ea1919";
+	}
+
+	emo1.beginPath();
+	emo1.rect(fauna[i].x + fauna[i].width/2 + 1, fauna[i].y - 1 - y, 14, y);
+	emo1.fill();
+	emo2.drawImage(emotes, 16*emote, 0, 16, 16, fauna[i].x + fauna[i].width/2, fauna[i].y - 16, 16, 16);
+}
+function postCombat(i, f){
+	
+}
+function drawThermometer(){
+	ovr2.drawImage(thermometer, 545, 80);
+}
+function drawClock(){
+	ovr.drawImage(clock,clockX - 30,clockY - 30);
+
+	ovr.beginPath();
+	ovr.arc(589, 9, 10, 0, 2*Math.PI);
+	ovr.fill();
+}
+function drawThermometerReading(){
+	ovr2.fillStyle = "black";
+	ovr2.font = "7pt Arial";
+	ovr2.clearRect(556,81,8,40 - globalTemperature);
+	ovr2.clearRect(575,70,25,100);
+	ovr2.fillText(globalTemperature.toFixed(0) + " C", 575, 125 - globalTemperature);
+}
+function drawClockHand(){
+	ovr2.clearRect(clockX - 30,clockY - 30,60,60);
+	ovr2.beginPath();
+	ovr2.rect(clockX - 2,clockY - 2,4,4);
+	ovr2.fill();
+	ovr2.lineWidth = 2;
+	ovr2.moveTo(clockX,clockY);
+	ovr2.lineTo(clockX - 30*Math.cos(Math.PI/2 + (ticker)*Math.PI/12), clockY - 30*Math.sin(Math.PI/2 + (ticker)*Math.PI/12));
+	ovr2.stroke();
+}
+function drawYear(){
+	ovr3.clearRect(575,0,30,20);
+	ovr3.fillStyle = "#7df9ff";
+	if (year < 10){
+		ovr3.fillText(year, 586, 13);
+	}
+	if (year >= 10){
+		ovr3.fillText(year, 582, 13);
+	}
+}
+function drawControls(){
+	ovr.fillText("P=PAUSE", 420, 10);
+	ovr.fillText("SPACE=YOU", 420, 20);
+	ovr.fillText("UP/DOWN=FAUNA", 420, 30);
+	ovr.fillText("LEFT/RIGHT=FLORA", 420, 40);
+}
+function postMouseCoordinates(){
+	ovr.clearRect(100, 80, 100, 50);
+	ovr.fillText(mouseX, 100, 100);
+	ovr.fillText(mouseY, 100, 130);
+}
+
+function getTile(lifeform){
+	var tileIndex = 0;
+	for (var t = 0; t < tiles.length; t++){
+		mouseX = lifeform.x;
+		mouseY = lifeform.y;
+		if (checkButton(tiles[t])){
+			tileIndex = t;
+		}
+	}
+	return tileIndex;
+}
+function checkDistance(shapeA, shapeB) {
+	var dX = (shapeA.x + (shapeA.width / 2)) - (shapeB.x + (shapeB.width / 2)),
+	    dY = (shapeA.y + (shapeA.height / 2)) - (shapeB.y + (shapeB.height / 2)),
+	    tangentX = (shapeA.width + shapeB.width) / 2,
+	    tangentY = (shapeA.height + shapeB.height) / 2,
+	    separationX = Math.abs(dX) - tangentX,
+	    separationY = Math.abs(dY) - tangentY,
+	    nearby = false,
+	    colliding = false;
+	if (separationX <= 0){
+		separationX = 0;
+	}
+	if (separationY <= 0){
+		separationY = 0;
+	}
+	if (separationX === 0 && separationY === 0){
+		colliding = true;
+	}
+	if (dX > 0){
+		separationX *= -1;
+	}
+	if (dY > 0){
+		separationY *= -1;
+	}
+	var distance = Math.sqrt(Math.pow(separationX, 2)+Math.pow(separationY, 2)).toFixed(1);
+	if (distance <= shapeA.awareness){
+		nearby = true;
+	}
+	var data = [distance, separationX, separationY, nearby, colliding];
+	return data;
+}
+function getSeparation(shapeA, shapeB){
+	var dX = (shapeA.x + (shapeA.width / 2)) - (shapeB.x + (shapeB.width / 2)),
+	    dY = (shapeA.y + (shapeA.height / 2)) - (shapeB.y + (shapeB.height / 2)),
+	    tangentX = (shapeA.width + shapeB.width) / 2,
+	    tangentY = (shapeA.height + shapeB.height) / 2,
+	    separationX = Math.abs(dX) - tangentX,
+	    separationY = Math.abs(dY) - tangentY;
+
+	if (separationX <= 0){
+		separationX = 0;
+	}
+	if (separationY <= 0){
+		separationY = 0;
+	}
+	if (dX > 0){
+		separationX *= -1;
+	}
+	if (dY > 0){
+		separationY *= -1;
+	}
+	
+	return [separationX, separationY];
+}
+function createProximityWeb(){
+	for (var i = 0; i < fauna.length; i++){
+		proximityWeb.push([]);
+		for (var f = 0; f < fauna.length; f++){
+			proximityWeb[i].push(checkDistance(fauna[i], fauna[f]));
+		}
+	}
+}
+function updateProximityWeb(i){
+	for (var f = 0; f < fauna.length; f++){
+		proximityWeb[i][f] = checkDistance(fauna[i], fauna[f]);
+		proximityWeb[f][i] = checkDistance(fauna[f], fauna[i]);
+	}
+}
+function matchMaking(){
+	var pairs = [];
+
+	for (var i = 0; i < fauna.length; i++){
+		if (fauna[i].post === "..."){
+			var nearbyFauna = senseFauna(i);
+			for (var f = 0; f < nearbyFauna.length; f++){
+				pairs.push([i, nearbyFauna[f][5]]);
+			}
+		}
+	}
+
+	for (var p = 0; p < pairs.length; p++){
+		for (var r = 0; r < pairs.length; r++){
+			if (pairs[p][0] === pairs[r][1] && 
+				pairs[r][0] === pairs[p][1]){
+				
+				fauna[pairs[p][0]].post = ":)";
+				fauna[pairs[r][0]].post = ":)";
+				fauna[pairs[p][0]].actionBuffer = 1;
+				fauna[pairs[r][0]].actionBuffer = 1;
+			}
+		}
+	}
+}
+function senseWater(i){
+	var nearbyWater = [];
+	for (var t = 0; t < tiles.length; t++){
+		var newWater = checkDistance(fauna[i], tiles[t]);
+		if (newWater[3] && tiles[t].moisture > 80){
+			newWater.push(t);
+			nearbyWater.push(newWater);
+		}
+	}
+	nearbyWater.sort(function(a,b) {return Math.abs(a[0]) - Math.abs(b[0])});
+	return nearbyWater;
+}
+function senseFauna(i,range){
+	var nearbyFauna = [];
+	for (var f = 0; f < fauna.length; f++){
+		if (f != i && fauna[f].origin != fauna[i].origin){
+			var newFauna = checkDistance(fauna[i], fauna[f]);
+			if (newFauna[3]){
+				newFauna.push(f);
+				nearbyFauna.push(newFauna);
+			}
+		}
+	}
+	nearbyFauna.sort(function(a,b) {return Math.abs(a[0]) - Math.abs(b[0])});
+	return nearbyFauna;
+}
+function senseFlora(i){
+	var nearbyFlora = [];
+	for (var k = 0; k < flora.length; k++){
+		var newFlora = checkDistance(fauna[i], flora[k]);
+		if (newFlora[0] <= fauna[i].awareness + flora[k].lure){
+			newFlora[3] = true;
+			newFlora.push(k);
+			nearbyFlora.push(newFlora);
+		}
+	}
+	nearbyFlora.sort(function(a,b) {return Math.abs(a[0]) - Math.abs(b[0])});
+	return nearbyFlora;
+}
+function senseOrganics(i, desiredOrganic){
+	var nearbyOrganics = [];
+	for (var t = 0; t < tiles.length; t++){
+		var newOrganic = checkDistance(fauna[i], tiles[t]);
+		if (newOrganic[3]){
+			for (var o = 0; o < tiles[t].organics.length; o++){
+				if (organics[tiles[t].organics[o][0]][1] === desiredOrganic){
+					newOrganic.push(t);
+					nearbyOrganics.push(newOrganic);
+				}
+			}
+		}
+	}
+	nearbyOrganics.sort(function(a,b) {return Math.abs(a[0]) - Math.abs(b[0])});
+	return nearbyOrganics;
+}
+
+function communicate(i){
+	fauna[i].actionBuffer = communicateCycle;
+	fauna[i].post = fauna[i].wordBank[Math.floor(Math.random()*fauna[i].wordBank.length)];
+	count += 1;
+}
+function listen(i){
+	fauna[i].actionBuffer = communicateCycle;
+	fauna[i].post = "...";
+	count += 1;
+}
+function socialize(i,f){
+	fauna[i].post = ":)";
+	fauna[f].post = ":)";
+	fauna[i].actionBuffer = socializeCycle;
+	fauna[f].actionBuffer = socializeCycle;
+	count += 1;
+}
+function pursueSocial(i){
+	var socialRNG = Math.random();
+	if (socialRNG < .75){
+		listen(i);
+	}
+	if (socialRNG > .75){
+		communicate(i);
+	}
+}
+function sleep(i){
+	fauna[i].vitality += 2;
+	fauna[i].actionBuffer = sleepCycle;
+	fauna[i].post = "zzz";
+	count += 1;
+}
+function attack(i, f){
+	var attack = fauna[i].bite + fauna[i].lacerate + fauna[i].pummel + fauna[i].impale,
+		defense = fauna[f].defense;
+	if (attack > defense){
+		var damage = attack - defense;
+	} else {
+		var damage = 0;
+	}
+	if (damage > fauna[f].vitality){
+		damage = fauna[f].vitality;
+	}
+	fauna[f].vitality -= damage;
+	if (fauna[i].toxicity > 0){
+		fauna[f].injury = "Poison";
+	}
+	fauna[i].actionBuffer = attackCycle;
+	fauna[f].actionBuffer = damagedCycle;
+	fauna[f].emote = 2;
+	count += 1;
+}
+function exposeDisease(lifeform, disease){
+	var odds = Math.random()*100/lifeform.vitality,
+		rng = Math.random();
+	if (rng < odds && disease.name != "None"){
+		lifeform.disease = disease;
+	}
+}
+function pursueWater(i){
+	if (fauna[i].path.length === 0){
+		var nearbyWater = senseWater(i);
+		if (nearbyWater.length < 1){
+			
+		} else {
+			findPath(i, 
+			tiles[nearbyWater[0][5]].x + (tiles[nearbyWater[0][5]].width - fauna[i].width)/2,
+			tiles[nearbyWater[0][5]].y + (tiles[nearbyWater[0][5]].width - fauna[i].width)/2);
+			fauna[i].target = tiles[nearbyWater[0][5]];
+		}
+	} else if (fauna[i].path.length === 1){
+		if (!nodeCollisionDetection(i)){
+			moveTowardsHitbox(i, nearbyWater);
+		} else {
+			drinkWater(i);
+			exposeDisease(fauna[i],tiles[nearbyWater[0][5]].organics[0][1]);
+		}
+	} else {
+
+	}
+}
+function drinkWater(i){
+	fauna[i].hydration += 5;
+	fauna[i].actionBuffer = drinkCycle;
+	fauna[i].emote = 1;
+	count += 1;
+}
+function pursueFood(i){
+
+	if (fauna[i].diet === "Carn" || fauna[i].diet === "Omni"){
+		var nearbyFauna = senseFauna(i);
+		if (nearbyFauna.length < 1){
+
+		} else if (!nearbyFauna[0][4]){
+			moveTowardsHitbox(i, nearbyFauna);
+			boxFauna(nearbyFauna[0][5],"red");
+		} else if (nearbyFauna[0][4] && fauna[nearbyFauna[0][5]].vitality > 0){
+			attack(i,nearbyFauna[0][5]);
+		} else {
+			eatFauna(i, nearbyFauna[0][5]);
+			exposeDisease(fauna[i],fauna[nearbyFauna[0][5]].disease);
+		}
+	}
+
+	if (fauna[i].diet === "Herb" || fauna[i].diet === "Omni"){
+		if (fauna[i].path.length === 0){
+			var nearbyFlora = senseFlora(i);
+			if (nearbyFlora.length >= 1){
+				findPath(i, flora[nearbyFlora[0][5]].x, flora[nearbyFlora[0][5]].y);
+			}
+		}
+		if (fauna[i].path.length >= 1){
+
+		}	
+	}
+
+	if (fauna[i].diet === "Plank"){
+		if (fauna[i].path.length === 0){
+			var nearbyOrganics = senseOrganics(i,1);
+		}
+		if (fauna[i].path.length === 1){
+			moveTowardsHitbox(i, nearbyOrganics);
+		}
+		if (fauna[i].path.length > 1){
+
+		}
+		if (nearbyOrganics.length < 1){
+			
+		} else if (!nearbyOrganics[0][4]){
+			
+		} else {
+			eatOrganics(i);
+			exposeDisease(fauna[i],tiles[nearbyOrganics[0][5]].organics[0][1]);
+		}
+	}
+
+	if (fauna[i].diet === "Fungi"){
+		var nearbyOrganics = senseOrganics(i,2);
+		if (nearbyOrganics.length < 1){
+			
+		} else if (!nearbyOrganics[0][4]){
+			moveTowardsHitbox(i, nearbyOrganics);
+		} else {
+			eatOrganics(i);
+			exposeDisease(fauna[i],tiles[nearbyOrganics[0][5]].organics[0][1]);
+		}
+	}
+
+	if (fauna[i].diet === "Bact"){
+		var nearbyOrganics = senseOrganics(i,3);
+		if (nearbyOrganics.length < 1){
+			
+		} else if (!nearbyOrganics[0][4]){
+			moveTowardsHitbox(i, nearbyOrganics);
+		} else {
+			eatOrganics(i);
+			exposeDisease(fauna[i],tiles[nearbyOrganics[0][5]].organics[0][1]);
+		}
+	}
+
+	if (fauna[i].diet === "Detrit"){
+		var nearbyOrganics = senseOrganics(i,4);
+		if (nearbyOrganics.length < 1){
+			
+		} else if (!nearbyOrganics[0][4]){
+			moveTowardsHitbox(i, nearbyOrganics);
+		} else {
+			eatOrganics(i);
+			exposeDisease(fauna[i],tiles[nearbyOrganics[0][5]].organics[0][1]);
+		}
+	}
+}
+function eatFauna(i, f){
+	fauna[i].energyUnprocessed += fauna[i].size/100;
+	fauna[f].energyValue -= fauna[i].size/100;
+	fauna[i].actionBuffer = eatCycle;
+	fauna[i].emote = 0;
+	count += 1;
+}
+function eatFlora(i, k){
+	fauna[i].energyUnprocessed += fauna[i].size/100;
+	flora[k].energyValue -= fauna[i].size/100;
+	fauna[i].actionBuffer = eatCycle;
+	fauna[i].emote = 0;
+	count += 1;
+}
+function eatOrganics(i){
+	fauna[i].energyUnprocessed += fauna[i].size/100;
+	fauna[i].actionBuffer = eatCycle;
+	fauna[i].emote = 0;
+	count += 1;
+}
+function pathBlocked(x1,y1,x2,y2,i,obstacles){
+	var s = fauna[i].width,
+		m = (y2-y1)/(x2-x1);
+	if (x2 === x1){
+		if (y2 > y1){
+			m = 999;
+		}
+		if (y2 < y1){
+			m = -999;
+		}
+	}
+
+	if (m <= 0){ 
+		if (x2 >= x1){ //Up-Right
+			var b1 = y1 - m*x1,
+				b2 = (y1+s) - m*(x1+s);
+			for (var n = 0; n < obstacles.length; n++){
+				if (obstacles[n].x <= x2 + s){ //Ax
+					if (obstacles[n].y <= m*obstacles[n].x + b2 &&
+						obstacles[n].y <= y1 + s){ //Ay
+						if (obstacles[n].x + obstacles[n].width >= x1){ //Cx
+							if (obstacles[n].y + obstacles[n].height >= m*(obstacles[n].x + obstacles[n].width) + b1 && 
+								obstacles[n].y + obstacles[n].height >= y2){ //Cy
+								
+								return true;
+							}
+						}
+					}
+				}
+			}
+		}
+		if (x1 > x2){ //Down-Left
+			var b1 = y1 - m*x1,
+				b2 = (y1+s) - m*(x1+s);
+			for (var n = 0; n < obstacles.length; n++){
+				if (obstacles[n].x <= x1 + s){ //Ax
+					if (obstacles[n].y <= m*obstacles[n].x + b2 && 
+						obstacles[n].y <= y2 + s){ //Ay
+						if (obstacles[n].x + obstacles[n].width >= x2){ //Cx
+							if (obstacles[n].y + obstacles[n].height >= m*(obstacles[n].x + obstacles[n].width) + b1 &&
+								obstacles[n].y + obstacles[n].height >= y1){ //Cy
+								
+								return true;
+							
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	if (m > 0){
+		if (x2 >= x1){ //Down-Right
+			var b1 = y1 - m*(x1+s),
+				b2 = (y1+s) - m*x1;
+			for (var n = 0; n < obstacles.length; n++){
+				if (obstacles[n].x + obstacles[n].width >= x1){ //Bx
+					if (obstacles[n].y <= m*(obstacles[n].x + obstacles[n].width) + b2 && 
+						obstacles[n].y <= y2 + s){ //By
+						if (obstacles[n].x <= x2 + s){ //Dx
+							if (obstacles[n].y + obstacles[n].height >= m*obstacles[n].x + b1 && 
+								obstacles[n].y + obstacles[n].height >= y1){ //Dy
+								
+								return true;
+								
+							}
+						}
+					}
+				}
+			}
+		}
+		if (x1 > x2){ //Up-Left
+			var b1 = y1 - m*(x1+s),
+				b2 = (y1+s) - m*x1;
+			for (var n = 0; n < obstacles.length; n++){
+				if (obstacles[n].x + obstacles[n].width >= x2){ //Bx
+					if (obstacles[n].y <= m*(obstacles[n].x + obstacles[n].width) + b2 &&
+						obstacles[n].y <= y1 + s){ //By
+						if (obstacles[n].x <= x1 + s){ //Dx
+							if (obstacles[n].y + obstacles[n].height >= m*obstacles[n].x + b1 && obstacles[n].y + obstacles[n].height >= y2){ //Dy
+								
+								return true;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+function nodeCoordinates(obstacle,i,corner){
+	if (corner === 0){
+		return [obstacle.x - fauna[i].width - 2, obstacle.y - fauna[i].height - 2];
+	}
+	if (corner === 1){
+		return [obstacle.x + obstacle.width + 2, obstacle.y - fauna[i].height - 2];
+	}
+	if (corner === 2){
+		return [obstacle.x + obstacle.width + 2, obstacle.y + obstacle.height + 2];
+	}
+	if (corner === 3){
+		return [obstacle.x - fauna[i].width - 2, obstacle.y + obstacle.height + 2];
+	}
+}
+function drawNode(x,y){
+	bck.fillStyle = "black";
+	bck.beginPath();
+	bck.arc(x,y,5,0,2*Math.PI);
+	bck.fill();
+}
+function addWaterNodesToWeb(i){
+	for (var t = 0; t < tiles.length; t++){ 
+		if (tiles[t].moisture > 80){
+			if (t > 14 && t%15 != 0){
+				if (tiles[t-15].moisture <= 80 && tiles[t-16].moisture <= 80 && tiles[t-1].moisture <= 80){ //A
+					fauna[i].nodeRegistry.push(nodeCoordinates(tiles[t],i,0));
+					fauna[i].nodeConnections.push([]);
+				}
+			}
+			if (t > 14 && t%15 != 14){
+				if (tiles[t-15].moisture <= 80 && tiles[t-14].moisture <= 80 && tiles[t+1].moisture <= 80){ //B
+					fauna[i].nodeRegistry.push(nodeCoordinates(tiles[t],i,1));
+					fauna[i].nodeConnections.push([]);
+				}
+			}
+			if (t < 179 && t%15 != 14){
+				if (tiles[t+15].moisture <= 80 && tiles[t+16].moisture <= 80 && tiles[t+1].moisture <= 80){ //C
+					fauna[i].nodeRegistry.push(nodeCoordinates(tiles[t],i,2));
+					fauna[i].nodeConnections.push([]);
+				}
+			}
+			if (t < 180 && t%15 != 0){
+				if (tiles[t+15].moisture <= 80 && tiles[t+14].moisture <= 80 && tiles[t-1].moisture <= 80){ //D
+					fauna[i].nodeRegistry.push(nodeCoordinates(tiles[t],i,3));
+					fauna[i].nodeConnections.push([]);
+				}
+			}
+
+		}
+	}
+}
+function addTerrainNodesToWeb(i){
+	for (var u = 0; u < terrain.length; u++){ 
+		for (var n = 0; n < 4; n++){
+			if (nodeCoordinates(terrain[u],i,n)[0] < width - fauna[i].width &&
+				nodeCoordinates(terrain[u],i,n)[0] >= 0 &&
+				nodeCoordinates(terrain[u],i,n)[1] < height - fauna[i].height &&
+				nodeCoordinates(terrain[u],i,n)[1] >= 0){
+				fauna[i].nodeRegistry.push(nodeCoordinates(terrain[u],i,n));
+				fauna[i].nodeConnections.push([]);
+			}
+		}
+	}
+}
+function addConnectionsBetweenNodes(i){
+	for (var n = 0; n < fauna[i].nodeRegistry.length; n++){
+		for (var m = 0; m < fauna[i].nodeRegistry.length; m++){
+			if (n != m){
+				if (!pathBlocked(
+					fauna[i].nodeRegistry[n][0], fauna[i].nodeRegistry[n][1],
+					fauna[i].nodeRegistry[m][0], fauna[i].nodeRegistry[m][1],
+					i,rectangles)){
+					fauna[i].nodeConnections[n].push([m,
+						Math.sqrt(
+						Math.pow(fauna[i].nodeRegistry[m][1] - fauna[i].nodeRegistry[n][1],2) + 
+						Math.pow(fauna[i].nodeRegistry[m][0] - fauna[i].nodeRegistry[n][0],2)
+					)]);
+				}
+			}
+		}
+	}
+}
+function createStaticWeb(i){
+	addWaterNodesToWeb(i);
+	addTerrainNodesToWeb(i);
+	addConnectionsBetweenNodes(i);
+}
+function integrateStartingPointNode(i){
+	fauna[i].nodeRegistry.push([fauna[i].x,fauna[i].y]);
+	fauna[i].nodeConnections.push([]);
+	for (var n = 0; n < fauna[i].nodeRegistry.length - 1; n++){ //Fauna to Nodes
+		if (!pathBlocked(
+			fauna[i].x, fauna[i].y,
+			fauna[i].nodeRegistry[n][0], fauna[i].nodeRegistry[n][1],
+			i,rectangles)){
+			fauna[i].nodeConnections[fauna[i].nodeRegistry.length - 1].push([n,
+				Math.sqrt(
+				Math.pow(fauna[i].nodeRegistry[n][1] - fauna[i].y,2) + 
+				Math.pow(fauna[i].nodeRegistry[n][0] - fauna[i].x,2)
+			)]);
+		}
+	}
+	bck.fillStyle = "yellow";
+	bck.beginPath();
+	bck.arc(fauna[i].nodeRegistry[fauna[i].nodeRegistry.length-1][0],fauna[i].nodeRegistry[fauna[i].nodeRegistry.length-1][1],5,0,2*Math.PI);
+	bck.fill();
+}
+function integrateDestinationNode(i,destX,destY){
+	fauna[i].nodeRegistry.push([destX,destY]);
+	fauna[i].nodeConnections.push([]);
+	for (var n = 0; n < fauna[i].nodeRegistry.length - 1; n++){ //Nodes to Destination
+		if (!pathBlocked(
+			destX, destY,
+			fauna[i].nodeRegistry[n][0], fauna[i].nodeRegistry[n][1],
+			i,rectangles)){
+			fauna[i].nodeConnections[n].push([fauna[i].nodeRegistry.length - 1,
+				Math.sqrt(
+				Math.pow(fauna[i].nodeRegistry[n][1] - destY,2) + 
+				Math.pow(fauna[i].nodeRegistry[n][0] - destX,2)
+			)]);
+			
+		}
+	}
+	bck.fillStyle = "red";
+	bck.beginPath();
+	bck.arc(destX,destY,5,0,2*Math.PI);
+	bck.fill();
+}
+function calculateBestPath(nodes, sequences, lengths, pathToBeat, i){
+	var newSequences = [],
+		newLengths = [],
+		nextNodes = [];
+	for (var g = 0; g < nodes.length; g++){
+		for (var c = 0; c < fauna[i].nodeConnections[nodes[g]].length; c++){
+			var testNode = fauna[i].nodeConnections[nodes[g]][c][0],
+				pathLength = lengths[g] + fauna[i].nodeConnections[nodes[g]][c][1];
+			var pathSequence = [];
+			for (var s = 0; s < sequences[g].length; s++){
+				pathSequence.push(sequences[g][s]);
+			}		
+			if (pathLength < pathToBeat[testNode] &&
+				pathLength < pathToBeat[fauna[i].nodeRegistry.length - 1]){
+				pathSequence.push(testNode);
+				pathToBeat[testNode] = pathLength;
+				newSequences.push(pathSequence);
+				newLengths.push(pathLength);
+				nextNodes.push(testNode);
+				if (testNode === fauna[i].nodeRegistry.length - 1){
+					fauna[i].path = pathSequence;
+					if (fauna[i].path.length === 1){
+						nextNodes = [];
+					}
+				}
+			}
+		}
+	}
+	if (nextNodes.length >= 1){
+		calculateBestPath(nextNodes, newSequences, newLengths, pathToBeat, i);
+	}
+}
+function findPath(i, destX, destY){
+	
+	integrateStartingPointNode(i);
+	integrateDestinationNode(i, destX, destY);
+
+	var pathToBeat = [];
+	for (var n = 0; n < fauna[i].nodeRegistry.length; n++){
+		pathToBeat.push([9999]);
+	}
+
+	calculateBestPath([fauna[i].nodeRegistry.length - 2], [[]], [0], pathToBeat, i);
+	bck.fillText(fauna[i].path, 10,10);
+	bck.strokeStyle = "blue";
+	if (fauna[i].path.length > 0){
+		bck.moveTo(fauna[i].x, fauna[i].y);
+		for (var n = 0; n < fauna[i].path.length; n++){
+			bck.lineTo(fauna[i].nodeRegistry[fauna[i].path[n]][0], fauna[i].nodeRegistry[fauna[i].path[n]][1]);
+		}
+		bck.stroke();
+	}
+}
+function moveTowardsCoordinates(i, destX, destY){
+	var separationX = destX - fauna[i].x,
+		separationY = destY - fauna[i].y,
+		distance = Math.sqrt(Math.pow(separationX,2) + Math.pow(separationY,2));
+	//speed is measured in pixels/60 frames
+	fauna[i].velX = (1/60)*fauna[i].speed*(separationX/distance);
+	fauna[i].velY = (1/60)*fauna[i].speed*(separationY/distance);
+	
+	fauna[i].actionBuffer = moveCycle;
+	count += 1;
+}
+function moveTowardsHitbox(i, nearbyArray){
+	var separationX = nearbyArray[0][1],
+		separationY = nearbyArray[0][2],
+		distance = nearbyArray[0][0];
+	//speed is measured in pixels/60 frames
+	fauna[i].velX = (1/60)*fauna[i].speed*(separationX/distance);
+	fauna[i].velY = (1/60)*fauna[i].speed*(separationY/distance);
+	
+	fauna[i].actionBuffer = moveCycle;
+	count += 1;
+}
+var count = 0;
+function AIStats(priorityArray){
+	ovr.clearRect(10, 10, 100, 100);
+	for (var y = 0; y < priorityArray.length; y++){
+		ovr.fillText(priorityArray[y], 10, 20 + 10*y);
+	}
+	slc.clearRect(10, 190, 40, 20);
+	slc.fillText(count, 10, 200);
+}
+function faunaAI(i){
+	var priorityArray = [],
+		drinkPriority = .2,
+		eatPriority = fauna[i].energyUnprocessed/(fauna[i].size*.2),
+		sleepPriority = .1,
+		socialPriority = 0.8;
+
+	if (Math.sin(fauna[i].rhythm[1]*(ticker + fauna[i].rhythm[0])) > fauna[i].rhythm[2]){
+		priorityArray.push([sleepPriority, "sleep"]);
+	}
+	priorityArray.push([drinkPriority.toFixed(3), "thirst"]);
+	priorityArray.push([eatPriority.toFixed(3), "hunger"]);
+	priorityArray.push([socialPriority.toFixed(3), "social"]);
+	
+	priorityArray.sort();
+	
+	for (var n = 0; n < priorityArray.length; n++){
+		if (fauna[i].actionBuffer < 0) {
+			if (priorityArray[n][1] === "thirst"){
+				pursueWater(i);
+			} else if (priorityArray[n][1] === "hunger"){
+				pursueFood(i);
+			} else if (priorityArray[n][1] === "sleep"){
+				sleep(i);
+			} else if (priorityArray[n][1] === "social"){
+				pursueSocial(i);
+			}
+		}
+	}
+}
+
+function convertToHex(n){
+	if (n > 255){
+		n = 255;
+	}
+	if (n < 0){
+		n = 0;
+	}
+	var sixteens = Math.floor(n/16),
+		ones = n - sixteens*16,
+		digits = [sixteens, ones],
+		letters = ["a","b","c","d","e","f"];
+	for (var d = 0; d < 2; d++){
+		if (digits[d] > 9){
+			digits[d] = letters[digits[d] - 10];
+		}
+	}
+	var hexadecimal = digits.join('');
+	return hexadecimal;
+}
+function random(array){
+	return array[Math.floor(Math.random()*array.length)];
+}
+
+generateBoulders();
+generateLand();
+drawTiles();
+drawBoulders();
+spawnFaunaCluster(3);
+spawnFaunaCluster(3);
+spawnFaunaCluster(3);
+spawnFaunaCluster(3);
+spawnFloraCluster(4);
+spawnFloraCluster(4);
+spawnFloraCluster(4);
+spawnFloraCluster(4);
+spawnFloraCluster(4);
+spawnFloraCluster(4);
+spawnFloraCluster(4);
+spawnFloraCluster(4);
+drawControls();
+drawClock();
+drawYear();
+for (var i = 0; i < fauna.length; i++){
+	createStaticWeb(i);
+}
+var boom = fauna[0];
+function test(){
+	var boop = tiles[3];
+	boom = boop;
+}
+test();
+
+
+var bang = tiles[4];
+var pow = fauna[0];
+var kerplow = bang;
+if (boom === bang){
+	ovr3.fillText("true", 100, 100);
+} else {
+	ovr3.fillText("false", 100, 100);
+}
+
+
+var senderNode = 0,
+	receiverNode = 0,
+	count3 = 0;
+
+function update(){
+	ivt.font = "14px Arial"
+	ivt.fillStyle = "#ceeace";
+
+	if (keyboard[32] && !holdingKey){	
+		selectFauna(0);
+		holdingKey = true;
+	}
+	if (keyboard[39] && !holdingKey){
+		var cycle = flora.length;
+		selectFlora((selected + 1)%cycle);
+		holdingKey = true;
+	}
+	if (keyboard[37] && !holdingKey){
+		var cycle = flora.length;
+		selectFlora((selected + cycle - 1)%cycle);
+		holdingKey = true;
+	}
+	if (keyboard[38] && !holdingKey){
+		var cycle = fauna.length;
+		selectFauna((selected + 1)%cycle);
+		holdingKey = true;
+	}
+	if (keyboard[40] && !holdingKey){
+		var cycle = fauna.length;
+		selectFauna((selected + cycle - 1)%cycle);
+		holdingKey = true;
+	}
+	if (keyboard[80] && !holdingKey){
+		paused = !paused;
+		if (paused){
+			ovr.beginPath();
+			ovr.rect(275, 220, 20, 80);
+			ovr.rect(325, 220, 20, 80);
+			ovr.fill();
+		} else {
+			ovr.clearRect(275,220,70,80);
+		}
+		holdingKey = true;
+	}
+	if (keyboard[87] && !holdingKey){
+		senderNode = (senderNode + 1)%(fauna[0].nodeRegistry.length);
+		holdingKey = true;
+		ovr3.fillStyle = "black";
+		bck.clearRect(105,0,20,20);
+		bck.fillText(senderNode, 105, 10);
+		
+	}
+	if (keyboard[83] && !holdingKey){
+		senderNode = (senderNode - 1)%(fauna[0].nodeRegistry.length);
+		holdingKey = true;
+		ovr3.fillStyle = "black";
+		ovr3.clearRect(105,0,20,20);
+		ovr3.fillText(senderNode, 105, 10);
+	}
+	if (keyboard[68] && !holdingKey){
+		receiverNode = (receiverNode + 1)%(fauna[0].nodeRegistry.length);
+		holdingKey = true;
+		bck.clearRect(120,0,25,20);
+		bck.fillText(receiverNode, 130, 10);
+		ovr3.clearRect(0,0,600,600);
+		pathBlocked(
+		fauna[0].nodeRegistry[senderNode][0], fauna[0].nodeRegistry[senderNode][1],
+		fauna[0].nodeRegistry[receiverNode][0], fauna[0].nodeRegistry[receiverNode][1],
+		0,rectangles);
+	}
+	if (keyboard[65] && !holdingKey){
+		receiverNode = (receiverNode - 1)%(fauna[0].nodeRegistry.length);
+		holdingKey = true;
+		ovr3.fillStyle = "black";
+		ovr3.clearRect(120,0,20,20);
+		ovr3.fillText(receiverNode, 130, 10);
+	}
+
+	if (!paused){
+		
+		if (selectedType === "Fauna"){
+			var oldEnergyProcessed = fauna[selected].energyProcessed,
+				oldEnergyUnprocessed = fauna[selected].energyUnprocessed,
+				oldEnergyValue = fauna[selected].energyValue,
+				oldTemperature = fauna[selected].temperature,
+				oldHydration = fauna[selected].hydration,
+				oldVitality = fauna[selected].vitality;
+		}
+		if (selectedType === "Flora"){
+			var oldHydration = flora[selected].hydration,
+				oldStature = flora[selected].stature,
+				oldEnergyValueFlora = flora[selected].energyValue;
+		}
+		
+		for (var i = 0; i < fauna.length; i++){
+			var oldX = fauna[i].x,
+				oldY = fauna[i].y;
+			if (!fauna[i].dead){
+				updateFauna(i);
+			}
+			drawFauna(i, oldX, oldY);
+		}
+		for (var k = 0; k < flora.length; k++){
+			if (flora[k].energyValue > 0){
+				updateFlora(k);
+			}
+			drawFlora(k);
+		}
+
+		if (selectedType === "Fauna"){
+			updateFaunaInfo(selected, oldEnergyProcessed, oldEnergyUnprocessed, oldEnergyValue, oldTemperature, oldHydration, oldVitality);
+		} 
+		if (selectedType === "Flora"){
+			updateFloraInfo(selected, oldHydration, oldStature, oldEnergyValueFlora);
+		}
+
+		matchMaking();
+
+		for (var i = 0; i < fauna.length; i++){
+			clearScroll(i);
+		}
+		for (var i = 0; i < fauna.length; i++){
+			clearEmotes(i);
+		}
+		for (var i = 0; i < fauna.length; i++){
+			if (fauna[i].post != ""){
+				postScroll(fauna[i].post,i);
+			}
+		}
+		for (var i = 0; i < fauna.length; i++){
+			if (fauna[i].emote >= 0){
+				emoteScroll(fauna[i].emote,i);
+			}
+		}
+
+		updateClimate();
+
+		for (var i = 0; i < fauna.length; i++){
+			fauna[i].actionBuffer -= 1/60;
+		}
+
+		ticker += 1/60;
+		actionTimeout -= 1/60;
+	}
+
+	if (actionTimeout < 0){
+		postArray = [];
+		emotesArray = [];
+		for (var i = 0; i < fauna.length; i++){
+			if (fauna[i].actionBuffer < 0){
+				fauna[i].velX = 0;
+				fauna[i].velY = 0;
+				fauna[i].emote = -1;
+				fauna[i].post = "";
+				if (!fauna[i].dead){
+					faunaAI(i);
+				}
+			}
+		}
+		actionTimeout = actionLength;
+	}
+
+	if (ticker%24 > 23.984){
+		year += 1;
+		updateAncestry();
+		evolution();
+		drawYear();
+	}
+
+	drawThermometer();
+	drawThermometerReading();
+	drawClockHand();
+
+	mouseX = 0,
+	mouseY = 0,
+
+	requestAnimationFrame(update);
+}
+
+
+function keySchedule() {
+	for (a = 0; a < 256; a++) {
+		S[a] = a;
+	}
+	for (a = 0; a < 256; a++) {
+		b = (b + S[a] + key[a % key.length]) % 256
+		S[a] = S[a] ^ S[b];
+		S[b] = S[a] ^ S[b];
+		S[a] = S[a] ^ S[b];
+	}
+}
+function arcfour() {
+	a = 0;
+	b = 0;
+	a = (a + 1) % 256;
+	b = (b + S[a]) % 256;
+	S[a] = S[a] ^ S[b];
+	S[b] = S[a] ^ S[b];
+	S[a] = S[a] ^ S[b];
+	keybyte = S[(S[a] + S[b]) % 256];
+	return keybyte;
+}
+function generateKey() {
+	keySchedule();
+	for (var byte = 0; byte < key.length; byte++){
+		key[byte] = arcfour();
+	}
+}
+
+document.getElementById("canvasStack").addEventListener("click", getClickPosition, false);
+document.getElementById("infoStack").addEventListener("click", getClickPosition, false);
+function checkButton(button){
+	if (mouseX > button.x && 
+		mouseX < button.x + button.width && 
+		mouseY > button.y && 
+		mouseY < button.y + button.height){
+		return true;
+	}
+};
+function getClickPosition(e) {
+	mouseX = e.clientX - 8.5;
+	mouseY = e.clientY - 8.5;
+	ttp.clearRect(0,0, invWidth, invHeight);
+	ttt.clearRect(0,0, invWidth, invHeight);
+	postMouseCoordinates();
+
+	if (mouseX > 600){
+		if (selectedType === "Fauna"){
+			if (checkButton(phenotypeTab)){
+				drawPhenotypesFauna(selected);
+			}
+			if (checkButton(graphTab)){
+				drawGraphPanel(selected);
+			}
+			if (checkButton(treeTab)){
+				drawTreePanel();
+				drawSpeciesTree(fauna[selected].origin, selectedType);
+			}
+			for (var p = 0; p < fauna[selected].phenotypes.length; p++){
+				var phenotypeHitbox = {
+					x: 615 + Math.floor(p/5)*168,
+					y: 403 + (p % 5)*24,
+					width: 165,
+					height: 20,
+				}
+				if (checkButton(phenotypeHitbox)){
+					drawToolTipFauna(p);
+				}
+			}
+			if (checkButton(awarenessButton)){
+				showRadar(selected);
+			}
+		} else if (selectedType === "Flora"){
+			if (checkButton(phenotypeTab)){
+				drawPhenotypesFlora(selected);
+			}
+			if (checkButton(graphTab)){
+				drawGraphPanel(selected);
+			}
+			if (checkButton(treeTab)){
+				drawTreePanel();
+				drawSpeciesTree(flora[selected].origin, selectedType);
+			}
+			for (var p = 0; p < flora[selected].phenotypes.length; p++){
+				var phenotypeHitbox = {
+					x: 615 + Math.floor(p/5)*168,
+					y: 403 + (p % 5)*24,
+					width: 165,
+					height: 20,
+				}
+				if (checkButton(phenotypeHitbox)){
+					drawToolTipFlora(p);
+				}
+			}
+		} else if (selectedType === "Soil"){
+			for (var o = 0; o < tiles[selected].organics.length; o++){
+				var organicsHitbox = {
+					x: 615 + Math.floor(o/5)*168,
+					y: 403 + (o % 5)*24,
+					width: 165,
+					height: 20,
+				}
+				if (checkButton(organicsHitbox)){
+					drawToolTipSoil(o);
+				}
+			}
+		} 
+	}
+
+	if (mouseX < 600){
+		var chosen = false;
+		for (var k = 0; k < flora.length; k++){
+			if (checkButton(flora[k])){
+				selectFlora(k);
+				chosen = true;
+			}
+		}
+		if (!chosen){
+			for (var i = 0; i < fauna.length; i++){
+				if (checkButton(fauna[i])){
+					selectFauna(i);
+					chosen = true;
+				}
+			}
+		}
+		if (!chosen){
+			for (var t = 0; t < tiles.length; t++){
+				if (checkButton(tiles[t])){
+					selectTile(t);
+				}
+			}
+		}
+	}			
+}
+
+tooltipBorderAndText.addEventListener("mousedown", function(e) {
+	dragging = true;
+	mousedownX = e.clientX;
+	mousedownY = e.clientY;
+}, false);
+window.addEventListener("mousemove", function(e) {
+	if (dragging) {
+		var dX = e.clientX - mousedownX,
+			dY = e.clientY - mousedownY;
+		mousedownX = e.clientX;
+		mousedownY = e.clientY;
+		offsetLeft += -dX;
+		offsetTop += -dY;
+		document.getElementById("treeStack").scrollLeft = offsetLeft;
+		document.getElementById("treeStack").scrollTop = offsetTop;
+	}
+}, false);
+window.addEventListener("mouseup", function() {
+	dragging = false;
+}, false);
+document.body.addEventListener("keydown", function(e) {
+	keyboard[e.keyCode] = true;
+});
+document.body.addEventListener("keyup", function(e) {
+	keyboard[e.keyCode] = false;
+	holdingSpace = false;
+	holdingRight = false;
+	holdingLeft = false;
+	holdingUp = false;
+	holdingDown = false;
+	holdingKey = false;
+});
+window.addEventListener("load", function(){
+	update();
+});
+</script>
+</body>
+</html>
